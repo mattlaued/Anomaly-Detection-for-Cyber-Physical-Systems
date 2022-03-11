@@ -1,3 +1,12 @@
+'''
+Author: @mattlaued
+
+This script will preprocess the 2 normal data files and produce 2 output files:
+1. Resultant preprocessed csv file.
+2. Pickle file for you to use the scaler in the future
+
+'''
+
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
@@ -47,5 +56,5 @@ df_new[p] = 2 - df_new[p]
 # Save Preprocessed Data and Scaler
 df_new.to_csv(f"{path_to_data}/SWaT_Dataset_Normal_2015_Combined_Scaled.csv", index=False)
 
-with open('SWaT_Data/scalerX.pkl', 'wb') as f:
+with open(f"{path_to_data}/scalerX.pkl", 'wb') as f:
     pickle.dump(scaler, f)
