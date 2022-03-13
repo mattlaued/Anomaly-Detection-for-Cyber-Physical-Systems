@@ -1,9 +1,9 @@
 '''
 Author: @mattlaued
 
-This script will preprocess the 2 normal data files and produce 2 output files:
-1. Resultant preprocessed csv file.
-2. Pickle file for you to use the scaler in the future
+This script will preprocess the attack data file and produce 2 output files:
+1. Training CSV
+2. Testing CSV
 
 '''
 
