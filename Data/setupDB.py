@@ -1,3 +1,6 @@
+"""
+Author: @BPod123
+"""
 import pandas as pd
 import sqlite3
 if __name__ == '__main__':
