@@ -1,7 +1,7 @@
 
 .idea
 .vscode
-
+SWaT_Data
 # Standard Git ignore files
 __pycache__/
 *.py[cod]
