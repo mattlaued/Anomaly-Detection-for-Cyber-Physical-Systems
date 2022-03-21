@@ -65,7 +65,7 @@ if __name__ == '__main__':
     stop = 5
     index = 0
     for train, label in iterator:
-        print("Batch {0} Train\n{1}\nBatch {0}\n\nLabel\n{2}".format(index, train, label))
+        print("Batch {0} Train\n{1}\nBatch {0} Label\n{2}\n".format(index, train, label))
         index += 1
         if index == stop:
             break
