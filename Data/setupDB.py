@@ -80,10 +80,8 @@ def insertChunk(chunk: pd.DataFrame, tableName, linesWritten, dbPath, writeLock:
     writeLock.release()
     con.close()
     linesWritten[0] += len(chunk)
-    # total = time.process_time() - start
     print("Lines Written to {0}:\t {1}\t\t+{2}".format(tableName, linesWritten[0], len(chunk)))
 
-    # return "Lines Written to {0}: {1}".format(tableName, linesWritten[0])
 
 
 def createTable(name, tableName, skipRows, tempDBPath):
@@ -247,78 +245,6 @@ def standardizeTable(dbPath, tableName):
     con.close()
 
 
-# def moveToSingleDatabase(dbPath):
-#     con = sqlite3.connect(dbPath)
-#     cursor = con.cursor()
-#     # Attach Databases
-#     # cursor.execute("""ATTACH DATABASE 'Normal.db' AS Normal_db""")
-#     # cursor.execute("""ATTACH DATABASE 'Attack.db' AS Attack_db""")
-#     for tableName in "Normal Attack".split(" "):
-#         cursor.execute("DROP TABLE IF EXISTS {0}".format(tableName))
-#         cursor.execute("CREATE TABLE {0}".format(tableName) + """(
-#         Timestamp TIMESTAMP,
-#         FIT101 REAL,
-#         LIT101 REAL,
-#         MV101 INTEGER,
-#         P101 INTEGER,
-#         P102 INTEGER,
-#         AIT201 REAL,
-#         AIT202 REAL,
-#         AIT203 REAL,
-#         FIT201 REAL,
-#         MV201 INTEGER,
-#         P201 INTEGER,
-#         P202 INTEGER,
-#         P203 INTEGER,
-#         P204 INTEGER,
-#         P205 INTEGER,
-#         P206 INTEGER,
-#         DPIT301 REAL,
-#         FIT301 REAL,
-#         LIT301 REAL,
-#         MV301 INTEGER,
-#         MV302 INTEGER,
-#         MV303 INTEGER,
-#         MV304 INTEGER,
-#         P301 INTEGER,
-#         P302 INTEGER,
-#         AIT401 INTEGER,
-#         AIT402 REAL,
-#         FIT401 REAL,
-#         LIT401 REAL,
-#         P401 INTEGER,
-#         P402 INTEGER,
-#         P403 INTEGER,
-#         P404 INTEGER,
-#         UV401 INTEGER,
-#         AIT501 REAL,
-#         AIT502 REAL,
-#         AIT503 REAL,
-#         AIT504 REAL,
-#         FIT501 REAL,
-#         FIT502 REAL,
-#         FIT503 REAL,
-#         FIT504 REAL,
-#         P501 INTEGER,
-#         P502 INTEGER,
-#         PIT501 REAL,
-#         PIT502 REAL,
-#         PIT503 REAL,
-#         FIT601 REAL,
-#         P601 INTEGER,
-#         P602 INTEGER,
-#         P603 INTEGER,
-#         ATTACK INTEGER,
-#         PRIMARY KEY (Timestamp)
-#                 );
-#                 """)
-#         cursor.execute("CREATE INDEX index_timestamp_{0} ON {0} (Timestamp);".format(tableName))
-#         # Move table from other database to the main database
-#         cursor.execute("""ATTACH DATABASE '{0}.db' AS {0}_db""".format(tableName))
-#         cursor.execute("INSERT INTO {0} SELECT * FROM {1}".format(tableName, "{0}_db.{0}".format(tableName)))
-#         # Remove other
-#     z = 3
-
 def preprocessing():
     pool = Pool(int(min(2, cpu_count())))
     asyncResults = [pool.apply_async(combineAndStandardize),
@@ -328,23 +254,17 @@ def preprocessing():
     [asyncRes.get() for asyncRes in asyncResults]
 
 
-def main(dbPath=None):
+if __name__ == '__main__':
     start = time.time()
-    if dbPath is None:
-        dbPath = __pathToDB()
-
     print("Creating Tables Normal_0, Normal_1, Attack")
     createTables()
     tableCreateTime = time.time() - start
     print("Print Created Tables Normal_0, Normal_1, Attack\tTime taken: {0}".format(round(tableCreateTime - start, 2)))
-    print("Combining Tables Normal_0 and Normal_1 and excluding duplicates and standardizing all data")
+    print("Combining Tables Normal_0 and Normal_1, excluding duplicates and standardizing all data")
     preprocessing()
     end = time.time()
     print("Standardized Table Data\tTime: {0} (+{1})".format(round(end - start, 2), round(end - tableCreateTime, 2)))
     print("Normal data stored in Normal.db.Normal")
     print("Attack data stored in Attack.db.Attack")
-    z = 3
-
-
-if __name__ == '__main__':
-    main()
+    end = time.time()
+    print("Time: {0}".format(end - start))
