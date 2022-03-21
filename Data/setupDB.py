@@ -258,7 +258,7 @@ if __name__ == '__main__':
     start = time.time()
     print("Creating Tables Normal_0, Normal_1, Attack")
     createTables()
-    tableCreateTime = time.time() - start
+    tableCreateTime = time.time()
     print("Print Created Tables Normal_0, Normal_1, Attack\tTime taken: {0}".format(round(tableCreateTime - start, 2)))
     print("Combining Tables Normal_0 and Normal_1, excluding duplicates and standardizing all data")
     preprocessing()
