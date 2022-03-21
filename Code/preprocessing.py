@@ -35,7 +35,7 @@ for col in df_new.columns:
     if col[0] == "M":
         # Categorical data for MV
         mv.append(col)
-    elif col[0] == "P":
+    elif col[0] == "P" and len(col) == 4:
         # Categorical data for Pump
         p.append(col)
     elif col[0:6] != "Normal" and col[0:5] != " Time":
