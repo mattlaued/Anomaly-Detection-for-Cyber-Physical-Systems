@@ -6,7 +6,7 @@ from tensorflow import keras
 from keras import layers
 
 import time
-
+from Data import getAttackDataIterator, getNormalDataIterator
 
 def make_generator_model():
     model = tf.keras.Sequential()
@@ -53,3 +53,24 @@ def make_discriminator_model():
     model.add(layers.Dense(2))
 
     return model
+def discriminatorLoss(realOut, fakeOut):
+    return cross_entropy(tf.ones_like(realOut), realOut) + cross_entropy(tf.zeros_like(fakeOut), fakeOut)
+def generatorLoss(fakeOut):
+    return cross_entropy(tf.ones_like(fakeOut), fakeOut)
+
+@tf.function
+def trainStep(batch):
+    pass
+
+# def train()
+# class GAN_Trainer(object):
+#     def __init__(self, generator, discriminator, ):
+
+if __name__ == '__main__':
+
+    normal = getNormalDataIterator(10, 5)
+    attack = getAttackDataIterator(10, 5)
+    cross_entropy = keras.losses.BinaryCrossentropy(from_logits=True)
+    generatorOptimizer = keras.optimizers.Adam(1e-4)
+    discriminatorOptimizer = keras.optimizers.Adam(1e-4)
+    z = 3

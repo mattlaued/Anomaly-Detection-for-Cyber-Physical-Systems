@@ -4,7 +4,7 @@
 
 import sqlite3
 from Data import NormalDBPath, AttackDBPath
-
+from multiprocessing import Pool, cpu_count
 
 class SequencedDataIterator(object):
     def __init__(self, batchSize: int, sequenceLength: int, dbPath: str, tableName: str):
@@ -50,7 +50,7 @@ class SequencedDataIterator(object):
                 ORDER BY Timestamp ASC LIMIT {1}
                   """.format(self.tableName, numRows, self.lastDate)))
         if len(data) == 0:
-            return [], []
+            raise StopIteration
         self.lastDate = data[-1][0]
         batchSize = self.batchSize - (self.batchSize + self.sequenceLength - 1 - len(data))
         batchTrain = tuple(
@@ -84,12 +84,12 @@ def getAttackDataIterator(batchSize: int, sequenceLength: int):
 
 
 if __name__ == '__main__':
-    iterator = getAttackDataIterator(5, 10)
-    stop = 5
+    iterator = getAttackDataIterator(20000, 1)
     index = 0
-    tenBatches = iterator.nextNBatches(10)
+    # import sys
+    # all = iterator.nextNPoints(sys.maxsize)
+    # del all
     for train, label in iterator:
-        print("Batch {0} Train\n{1}\nBatch {0} Label\n{2}\n".format(index, train, label))
+        print("Batch {0}".format(index))
         index += 1
-        if index == stop:
-            break
+

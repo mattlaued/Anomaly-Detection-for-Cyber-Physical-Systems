@@ -16,6 +16,7 @@ import numpy as np
 import math
 
 
+
 def __pathToDB():
     """
     Local function, used to get the path that is subject to change based on where the main method is started from
@@ -174,7 +175,7 @@ def createTables():
     [asyncRes.get() for asyncRes in asyncResults]
 
 
-def combineAndStandardize():
+def combineNormalData():
     con = sqlite3.connect("Normal.db")
     cursor = con.cursor()
     cursor.execute("ATTACH DATABASE 'Normal_0.db' as Normal_0")
@@ -195,8 +196,7 @@ def combineAndStandardize():
         os.remove("Normal_0.db")
     if os.path.isfile("Normal_1.db"):
         os.remove("Normal_1.db")
-    standardizeTable("Normal.db", "Normal")
-    print("Normal table created. Normal_0.db and Normal_1.db removed")
+
 
 
 def columnAvg(dbPath, tableName, col):
@@ -218,7 +218,15 @@ def columnStDev(dbPath, tableName, col):
     return val
 
 
-def standardizeTable(dbPath, tableName):
+def standardizeTable(dbPath, tableName, colMeanSTD=None):
+    """
+    :param colMeanSTD: Defaults to None, in which case it makes the following:
+    A dict mapping column names to a value for means and standard deviations to use
+            for that column.
+    :return: A dict mapping column names to their mean and standard deviation.
+    """
+    if colMeanSTD is None:
+        colMeanSTD = {}
     cols = ['FIT101', 'LIT101', 'AIT201', 'AIT202', 'AIT203', 'FIT201', 'DPIT301', 'FIT301', 'LIT301',
             'AIT402', 'FIT401',
             'LIT401', 'AIT501', 'AIT502', 'AIT503', 'AIT504', 'FIT501', 'FIT502', 'FIT503', 'FIT504',
@@ -232,7 +240,11 @@ def standardizeTable(dbPath, tableName):
     meanStdFutures = {col: [getMean(col), getStdev(col)] for col in cols}
     executor.shutdown()
     for col in cols:
-        mean, std = [x.result() for x in meanStdFutures[col]]
+        if col in colMeanSTD:
+            mean, std = colMeanSTD[col]
+        else:
+            mean, std = [x.result() for x in meanStdFutures[col]]
+            colMeanSTD[col] = (mean, std)
         setStrings.append("{0} = standardize({0}, {1}, {2})".format(col, mean, std))
     updateString = """UPDATE {0}
     SET {1};""".format(tableName, ",\n".join(setStrings))
@@ -243,15 +255,13 @@ def standardizeTable(dbPath, tableName):
     con.commit()
     cursor.close()
     con.close()
+    return colMeanSTD
 
 
-def preprocessing():
-    pool = Pool(int(min(2, cpu_count())))
-    asyncResults = [pool.apply_async(combineAndStandardize),
-                    pool.apply_async(standardizeTable, args=("Attack.db", "Attack"))]
-    pool.close()
-    pool.join()
-    [asyncRes.get() for asyncRes in asyncResults]
+
+
+
+
 
 
 if __name__ == '__main__':
@@ -259,12 +269,31 @@ if __name__ == '__main__':
     print("Creating Tables Normal_0, Normal_1, Attack")
     createTables()
     tableCreateTime = time.time()
-    print("Print Created Tables Normal_0, Normal_1, Attack\tTime taken: {0}".format(round(tableCreateTime - start, 2)))
+    print("Print Created Tables Normal_0, Normal_1, Attack\nTime taken: {0}".format(round(tableCreateTime - start, 2)))
+
     print("Combining Tables Normal_0 and Normal_1, excluding duplicates and standardizing all data")
-    preprocessing()
-    end = time.time()
-    print("Standardized Table Data\tTime: {0} (+{1})".format(round(end - start, 2), round(end - tableCreateTime, 2)))
+    print("Combining Normal_0 and Normal_1 data")
+    combineNormalData()
+    combineTime = time.time()
+    print("Normal.db created. Normal_0.db and Normal_1.db removed")
+    print("Time Taken: {0} (+{1})".format(round(combineTime - start, 2), round(combineTime - tableCreateTime, 2)))
+
+    print("Standardizing Normal Data")
+    colMeanStd = standardizeTable("Normal.db", "Normal")
+    normalStandardizeTime = time.time()
+    print("Normal Data Standardized")
+    print("Real-valued column means and standard deviations recorded")
+    print("Time Taken: {0} (+{1})".format(round(normalStandardizeTime - start, 2),
+                                          round(normalStandardizeTime - combineTime, 2)))
+    print("Standardizing Attack data")
+    # Use the mean and standard deviation of the normal data (6 days preceding the attack data)
+    # to standardize the attack data (5 days following the normal data).
+    standardizeTable("Attack.db", "Attack", colMeanStd)
+    end = attackStandardizeTime = time.time()
+    print("Attack Data Standardized")
+    print("Time Taken: {0} (+{1})".format(round(attackStandardizeTime - start, 2),
+                                          round(attackStandardizeTime - normalStandardizeTime, 2)))
+
     print("Normal data stored in Normal.db.Normal")
     print("Attack data stored in Attack.db.Attack")
-    end = time.time()
-    print("Time: {0}".format(end - start))
+    print("Time: {0}".format(round(end - start, 2)))
