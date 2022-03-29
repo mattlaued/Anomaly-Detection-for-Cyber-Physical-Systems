@@ -3,8 +3,12 @@
 """
 
 import sqlite3
-from Data import NormalDBPath, AttackDBPath
-from multiprocessing import Pool, cpu_count
+import time
+from datetime import datetime
+from Data import NormalDBPath, AttackDBPath, ALL_COLUMNS, DATE_FORMAT, TIME_STEP
+from numpy.lib.stride_tricks import sliding_window_view
+import numpy as np
+
 
 class SequencedDataIterator(object):
     def __init__(self, batchSize: int, sequenceLength: int, dbPath: str, tableName: str):
@@ -12,56 +16,47 @@ class SequencedDataIterator(object):
         self.sequenceLength = sequenceLength
         self.dbPath = dbPath
         self.tableName = tableName
-        self.lastDate = None
+
+        con = sqlite3.connect(self.dbPath)
+        cursor = con.cursor()
+        firstTimeStamp = list(cursor.execute("SELECT {0} FROM {1} LIMIT 1".format(ALL_COLUMNS[0], self.tableName)))[0][0]
+        cursor.close()
+        con.close()
+
+        self.lastDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
 
     def __iter__(self):
         return self
 
-    def nextNPoints(self, n: int, sequenceLength=None):
-        """
-        You can set n to float("inf") to receive all of the remaining data points
-        :param n: Number of data points to get
-        :param sequenceLength: Defaults to self.sequenceLength
-        :return: Returns the next n batches
-        """
-        if sequenceLength is None:
-            sequenceLength = self.sequenceLength
-        newIt = SequencedDataIterator(n, sequenceLength, self.dbPath, self.tableName)
-        newIt.lastDate = self.lastDate
-        next = newIt.__next__()
-        self.lastDate = newIt.lastDate
-        return next
+    def selectNextNRows(self, numRows):
+        dataCols = ", ".join(ALL_COLUMNS[1:-1])
+        labelCol = ALL_COLUMNS[-1]
+        for colString in [dataCols, labelCol]:
+            queryString = "SELECT {0} FROM {1}".format(colString, self.tableName)
+            if self.lastDate is not None:
+                queryString += """
+                        WHERE Timestamp > datetime('{0}')""".format(self.lastDate)
+            queryString += """
+                    ORDER BY Timestamp ASC"""
+            if numRows < float('inf'):
+                queryString += " LIMIT {0}".format(numRows)
+            con = sqlite3.connect(self.dbPath)
+            cursor = con.cursor()
+            data = list(cursor.execute(queryString))
+            cursor.close()
+            con.close()
+            if len(data) == 0:
+                raise StopIteration
+            yield np.array(data)
+        self.lastDate += len(data) * TIME_STEP
 
     def __next__(self):
-        con = sqlite3.connect(self.dbPath)
-        cursor = con.cursor()
         numRows = self.sequenceLength + self.batchSize - 1
-        if self.lastDate is None:
-            data = list(
-                cursor.execute(
-                    """
-                    SELECT * FROM {0}
-                    ORDER BY Timestamp ASC LIMIT {1}""".format(self.tableName, numRows)))
-        else:
-            data = list(cursor.execute(
-                """
-                SELECT * FROM {0}
-                WHERE Timestamp > datetime('{2}')
-                ORDER BY Timestamp ASC LIMIT {1}
-                  """.format(self.tableName, numRows, self.lastDate)))
-        if len(data) == 0:
-            raise StopIteration
-        self.lastDate = data[-1][0]
-        batchSize = self.batchSize - (self.batchSize + self.sequenceLength - 1 - len(data))
-        batchTrain = tuple(
-            [data[i + j][1:-1] for j in range(self.sequenceLength)]
-            for i in range(batchSize)
-        )
-        batchLabel = tuple(
-            [data[i + j][-1] for j in range(self.sequenceLength)]
-            for i in range(batchSize)
-        )
-        return batchTrain, batchLabel
+        data, labels = self.selectNextNRows(numRows)
+        # Data
+        yield sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+        # Labels
+        yield sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
 
 
 def getNormalDataIterator(batchSize: int, sequenceLength: int):
@@ -84,12 +79,14 @@ def getAttackDataIterator(batchSize: int, sequenceLength: int):
 
 
 if __name__ == '__main__':
-    iterator = getAttackDataIterator(20000, 1)
+    iterator = getAttackDataIterator(1000, 100)
     index = 0
-    # import sys
-    # all = iterator.nextNPoints(sys.maxsize)
-    # del all
+    times = []
+    curr = time.time()
     for train, label in iterator:
-        print("Batch {0}".format(index))
+        newCurr = time.time()
+        diff = newCurr - curr
+        times.append(diff)
+        print("Batch {0}\tTime: {1}\t Avg: {2}".format(index, round(diff, 5), round(np.average(times), 5)))
         index += 1
-
+        curr = time.time()
