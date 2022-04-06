@@ -8,6 +8,7 @@ from keras import layers
 import time
 from Data import getAttackDataIterator, getNormalDataIterator
 
+
 def make_generator_model():
     model = tf.keras.Sequential()
     # There are 51 attributes, not counting time stamps and the label
@@ -44,7 +45,6 @@ def make_discriminator_model():
     model.add(layers.Dropout(0.3))
     model.add(layers.Dense(256))
 
-
     # model.add(layers.Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
     model.add(layers.LeakyReLU())
     # model.add(layers.Dropout(0.3))
@@ -53,21 +53,26 @@ def make_discriminator_model():
     model.add(layers.Dense(2))
 
     return model
+
+
 def discriminatorLoss(realOut, fakeOut):
     return cross_entropy(tf.ones_like(realOut), realOut) + cross_entropy(tf.zeros_like(fakeOut), fakeOut)
+
+
 def generatorLoss(fakeOut):
     return cross_entropy(tf.ones_like(fakeOut), fakeOut)
+
 
 @tf.function
 def trainStep(batch):
     pass
+
 
 # def train()
 # class GAN_Trainer(object):
 #     def __init__(self, generator, discriminator, ):
 
 if __name__ == '__main__':
-
     normal = getNormalDataIterator(10, 5)
     attack = getAttackDataIterator(10, 5)
     cross_entropy = keras.losses.BinaryCrossentropy(from_logits=True)

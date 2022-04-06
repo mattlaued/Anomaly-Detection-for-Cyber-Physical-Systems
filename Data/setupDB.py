@@ -10,8 +10,7 @@ import pandas as pd
 import sqlite3
 import time
 from threading import Thread, Lock
-from multiprocessing import Pool, cpu_count, Process
-from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Pool, cpu_count
 import os
 import numpy as np
 import math
@@ -196,24 +195,6 @@ def combineNormalData():
     if os.path.isfile("Normal_1.db"):
         os.remove("Normal_1.db")
 
-
-# def columnAvg(dbPath, tableName, col):
-#     con = sqlite3.connect(dbPath)
-#     cursor = con.cursor()
-#     val = list(cursor.execute("SELECT AVG({0}) FROM {1}".format(col, tableName)))[0][0]
-#     cursor.close()
-#     con.close()
-#     return val
-
-
-# def columnStDev(dbPath, tableName, col):
-#     con = sqlite3.connect(dbPath)
-#     cursor = con.cursor()
-#     con.create_aggregate("stdev", 1, StdevFunc)
-#     val = list(cursor.execute("SELECT stdev({0}) FROM {1}".format(col, tableName)))[0][0]
-#     cursor.close()
-#     con.close()
-#     return val
 def columnMeanStd(dbPath, tableName, col):
     con = sqlite3.connect(dbPath)
     cursor = con.cursor()
@@ -302,24 +283,4 @@ if __name__ == '__main__':
     print("Normal and Attack data standardization complete")
     print("Time Taken: {0} (+{1})".format(round(end - start, 2),
                                           round(end - meanStdTime, 2)))
-    #
-    # print("Standardizing Normal Data")
-    #
-    # colMeanStd = standardizeTable("Normal.db", "Normal")
-    # normalStandardizeTime = time.time()
-    # print("Normal Data Standardized")
-    # print("Real-valued column means and standard deviations recorded")
-    # print("Time Taken: {0} (+{1})".format(round(normalStandardizeTime - start, 2),
-    #                                       round(normalStandardizeTime - combineTime, 2)))
-    # print("Standardizing Attack data")
-    # # Use the mean and standard deviation of the normal data (6 days preceding the attack data)
-    # # to standardize the attack data (5 days following the normal data).
-    # standardizeTable("Attack.db", "Attack", colMeanStd)
-    # end = attackStandardizeTime = time.time()
-    # print("Attack Data Standardized")
-    # print("Time Taken: {0} (+{1})".format(round(attackStandardizeTime - start, 2),
-    #                                       round(attackStandardizeTime - normalStandardizeTime, 2)))
-    #
-    # print("Normal data stored in Normal.db.Normal")
-    # print("Attack data stored in Attack.db.Attack")
-    # print("Time: {0}".format(round(end - start, 2)))
+
