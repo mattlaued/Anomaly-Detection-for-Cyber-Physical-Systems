@@ -9,7 +9,7 @@ that I should write more specific instructions to setup the database. If you fou
 and the below instructions too specific, then your reading comprehension skills lie somewhere between what is required
 for each.
 If you find the below instructions too complex, pray to your diety of choice for answers or ask Ben for help. 
-My number text is the best way to reach me, and you can ask someone for my number.
+ Text is the best way to reach me, and you can ask someone for my number.
 
 ## _**Very**_ specific instructions for setting up the database:
 For each of the files _SWaT_Dataset_Attack_v0.xlsx_, _SWaT_Dataset_Normal_v0.xlsx_, and _SWaT_Dataset_Normal_v1.xlsx_
