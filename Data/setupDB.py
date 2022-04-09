@@ -5,7 +5,12 @@ This script reloads the database by creating a separate database for each table 
 single database. Next the data is preprocessed. At the time or writing, the data is preprocessed by standardization.
 
 """
-from Data import REAL_COLUMNS
+try:
+    from Data import REAL_COLUMNS
+except:
+    REAL_COLUMNS = ['FIT101', 'LIT101', 'AIT201', 'AIT202', 'AIT203', 'FIT201', 'DPIT301', 'FIT301', 'LIT301', 'AIT402',
+                    'FIT401', 'LIT401', 'AIT501', 'AIT502', 'AIT503', 'AIT504', 'FIT501', 'FIT502', 'FIT503', 'FIT504',
+                    'PIT501', 'PIT502', 'PIT503', 'FIT601']
 import pandas as pd
 import sqlite3
 import time
