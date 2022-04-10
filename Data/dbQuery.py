@@ -11,19 +11,30 @@ import numpy as np
 
 
 class SequencedDataIterator(object):
-    def __init__(self, batchSize: int, sequenceLength: int, dbPath: str, tableName: str):
+    def __init__(self, batchSize, sequenceLength: int, dbPath: str, tableName: str, includeData: bool, includeLabel: bool):
+        if not includeData and not includeLabel:
+            raise Exception("At least one of includeData or includeLabel must be True.")
         self.batchSize = batchSize
         self.sequenceLength = sequenceLength
         self.dbPath = dbPath
         self.tableName = tableName
+        self.includeData = includeData
+        self.includeLabel = includeLabel
 
         con = sqlite3.connect(self.dbPath)
         cursor = con.cursor()
-        firstTimeStamp = list(cursor.execute("SELECT {0} FROM {1} LIMIT 1".format(ALL_COLUMNS[0], self.tableName)))[0][0]
+        firstTimeStamp = list(cursor.execute("SELECT {0} FROM {1} LIMIT 1".format(ALL_COLUMNS[0], self.tableName)))[0][
+            0]
         cursor.close()
         con.close()
 
         self.lastDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
+
+    def getAllRemaining(self):
+        seq = SequencedDataIterator(float('inf'), self.sequenceLength, self.dbPath, self.tableName, self.includeData, self.includeLabel)
+        seq.lastDate = self.lastDate
+        allRemaining = seq.__next__()
+        return allRemaining
 
     def __iter__(self):
         return self
@@ -31,7 +42,12 @@ class SequencedDataIterator(object):
     def selectNextNRows(self, numRows):
         dataCols = ", ".join(ALL_COLUMNS[1:-1])
         labelCol = ALL_COLUMNS[-1]
-        for colString in [dataCols, labelCol]:
+        cols = []
+        if self.includeData:
+            cols.append(dataCols)
+        if self.includeLabel:
+            cols.append(labelCol)
+        for colString in cols:
             queryString = "SELECT {0} FROM {1}".format(colString, self.tableName)
             if self.lastDate is not None:
                 queryString += """
@@ -52,31 +68,50 @@ class SequencedDataIterator(object):
 
     def __next__(self):
         numRows = self.sequenceLength + self.batchSize - 1
-        data, labels = self.selectNextNRows(numRows)
-        # Data
-        yield sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
-        # Labels
-        yield sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+        resultRows = self.selectNextNRows(numRows)
+        if self.includeData:
+            if self.includeLabel:
+                data, labels = resultRows
+            else:
+                data = resultRows
+        elif self.includeLabel:
+                labels = resultRows
+        else:
+            raise Exception("Both self.includeData and self.includeLabel are False. You messed up creating the iterator")
+        if self.includeData:
+            # Data
+            data = np.array(list(data)).squeeze(0)
+            return sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+        if self.includeLabel:
+            # Labels
+            labels = np.array(list(labels)).squeeze(0)
+            return sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
 
 
-def getNormalDataIterator(batchSize: int, sequenceLength: int):
+def getNormalDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False):
     """
-
+    :param includeData: If False, will only iterate through the labels
+    :param includeLabel: If true, will return tuple (train batch, label batch) when iterated through. Otherwise will exclude label
     :param batchSize:
     :param sequenceLength:
     :return: Returns an iterator throught the normal data
     """
-    return SequencedDataIterator(batchSize, sequenceLength, NormalDBPath(), "Normal")
+    if not includeData and not includeLabel:
+        raise Exception("At least one of includeData or includeLabel must be True.")
+    return SequencedDataIterator(batchSize, sequenceLength, NormalDBPath(), "Normal", includeData, includeLabel)
 
 
-def getAttackDataIterator(batchSize: int, sequenceLength: int):
+def getAttackDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False):
     """
+    :param includeData: If False, will only iterate through the labels
+    :param includeLabel: If true, will return tuple (train batch, label batch) when iterated through. Otherwise will exclude label
     :param batchSize:
     :param sequenceLength:
     :return: Returns and iterator through the attack data
     """
-    return SequencedDataIterator(batchSize, sequenceLength, AttackDBPath(), "Attack")
-
+    if not includeData and not includeLabel:
+        raise Exception("At least one of includeData or includeLabel must be True.")
+    return SequencedDataIterator(batchSize, sequenceLength, AttackDBPath(), "Attack", includeData, includeLabel)
 
 if __name__ == '__main__':
     iterator = getAttackDataIterator(1000, 100)
