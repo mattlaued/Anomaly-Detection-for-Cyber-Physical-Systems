@@ -238,9 +238,8 @@ if __name__ == '__main__':
     # gan.train(epochs=1, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
     # gan.train(epochs=1, data=normal, trainGenerator=True)
 
-
-
     for i in range(10):
         gan.train(epochs=1, data=normalIter, trainDescriminator=True, trainGenerator=True)
         totalLoss, averageLoss = gan.test_disc(attackIter)
-
+        gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i + 1))
+        gan.discriminator.save_weights("../Checkpoints/GAN_discriminator_epoch{0}_avg_loss_{1}.ckpt".format(i + 1, averageLoss))
