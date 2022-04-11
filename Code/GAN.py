@@ -70,6 +70,8 @@ class GAN(object):
         self._useProgressBar = use_progressBar
         self.generator = make_generator_model(genOutputSequenceLength)
         self.discriminator = make_discriminator_model()
+        self.generator.compile()
+        self.discriminator.compile()
         self.loss = keras.losses.BinaryFocalCrossentropy(from_logits=True)
         self.generatorOptimizer = keras.optimizers.Adam(1e-4)
         self.discriminatorOptimizer = keras.optimizers.Adam(1e-4)
@@ -95,20 +97,19 @@ class GAN(object):
                 batchesCompleted = 0
                 for batch in batchIter:
                     genLoss, discLoss = self.trainStep_both(batch, self.generator, self.discriminator, self.loss,
-                                                            self.generatorOptimizer, self.discriminatorOptimizer,
-                                                            trainGenerator, trainDescriminator)
+                                                            self.generatorOptimizer, self.discriminatorOptimizer)
 
                     totalGenLoss += genLoss
                     totalDiscLoss += discLoss
                     batchesCompleted += 1
                     if self._useProgressBar:
-                        gLoss = round(float(genLoss), 5)
-                        genAvg = round(float(totalGenLoss) / batchesCompleted, 5)
-                        dLoss = round(float(discLoss), 5)
-                        discAvg = round(float(totalDiscLoss) / batchesCompleted, 5)
+                        genLoss = round(float(genLoss), 8)
+                        genAvg = round(float(totalGenLoss) / batchesCompleted, 8)
+                        discLoss = round(float(discLoss), 8)
+                        discAvg = round(float(totalDiscLoss) / batchesCompleted, 8)
 
                         batchIter.set_description(
-                            f"Gen Loss: {gLoss}\tAvg Gen Loss: {genAvg}\tDisc Loss: {dLoss}\tAVG Disc Loss: {discAvg}")
+                            f"Gen Loss: {genLoss}\tAvg Gen Loss: {genAvg}\tDisc Loss: {discLoss}\tAVG Disc Loss: {discAvg}")
 
     def train_disc(self, epochs: int, dataIter, labelIter):
         for epoch in range(epochs):
@@ -124,8 +125,8 @@ class GAN(object):
                 totalLoss += discLoss
                 batchesCompleted += 1
                 if self._useProgressBar:
-                    discLoss = round(float(discLoss), 5)
-                    discAvg = round(float(totalLoss) / batchesCompleted, 5)
+                    discLoss = round(float(discLoss), 8)
+                    discAvg = round(float(totalLoss) / batchesCompleted, 8)
                     batchLabelIter.set_description(f"Disc Loss: {discLoss}\tAVG Disc Loss: {discAvg}")
 
     def train_gen(self, epochs: int, dataIter):
@@ -141,9 +142,9 @@ class GAN(object):
                 totalLoss += genLoss
                 batchesCompleted += 1
                 if self._useProgressBar:
-                    gLoss = round(float(genLoss), 5)
-                    genAvg = round(float(totalLoss) / batchesCompleted, 5)
-                    batchIter.set_description(f"Gen Loss: {gLoss}\tAvg Gen Loss: {genAvg}\t")
+                    genLoss = round(float(genLoss), 8)
+                    genAvg = round(float(totalLoss) / batchesCompleted, 8)
+                    batchIter.set_description(f"Gen Loss: {genLoss}\tAvg Gen Loss: {genAvg}\t")
 
     @staticmethod
     @tf.function
@@ -207,15 +208,16 @@ class GAN(object):
 
 
 if __name__ == '__main__':
-    sequenceLength = 1000 # Sequence length is this long because the attack lengths are long.
-    batchSize = 150
+    sequenceLength = 1200 # Sequence length is this long because the attack lengths are long.
+    batchSize = 90
+    print("Data points per batch: {0}".format(batchSize * sequenceLength * 51))
     normalIter = getNormalDataIterator(batchSize, sequenceLength, True)
     attackDatIter = getAttackDataIterator(batchSize, sequenceLength, True)
     attackLabelIter = getAttackDataIterator(batchSize, sequenceLength, False, True)
 
     normal = normalIter
     gan = GAN(sequenceLength)
-    gan.train(epochs=10, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
-    gan.train(epochs=10, data=normal, trainGenerator=True)
+    gan.train(epochs=1, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
+    gan.train(epochs=1, data=normal, trainGenerator=True)
     gan.train(epochs=10, data=attackDatIter, trainDescriminator=True, trainGenerator=True)
     z = 3
