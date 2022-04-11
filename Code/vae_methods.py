@@ -1,5 +1,6 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import numpy as np
 
 class Sampling(tf.keras.layers.Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
@@ -45,6 +46,7 @@ class VAE(tf.keras.Model):
         decoded = self.decoder(encoded[-1])
         return decoded
 
+#  Be careful with where vae object points to in the code
 def vae_loss(data, reconstruction): #y_true, y_pred
     mu, ln_var, z = vae.encoder(data)
     reconstruction_loss = tf.reduce_mean(
@@ -69,9 +71,14 @@ def sequencify(arr, window):
     
     return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides)
 
-def get_x(df):
-    # only last row with nan
-    df.dropna().drop(columns=" Timestamp", inplace=True)
+def sequencify_y(arr, window):
+    
+    shape = (arr.shape[0] - window + 1, window,)
+    
+    # strides for processor to know how many bytes to skip / stride over to read from memory
+    strides = (arr.strides[0],) + arr.strides
+    
+    return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides)
 
 def plot_data(df):
     for col in df.columns:
