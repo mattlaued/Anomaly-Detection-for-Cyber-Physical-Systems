@@ -161,11 +161,12 @@ class GAN(object):
         return discLoss
 
     @staticmethod
-    @tf.function
+    # @tf.function
     def trainStep_both(batch, gen, disc, loss, genOpt, discOpt):
         noise = tf.random.normal(batch.shape)
         with tf.GradientTape() as gTape, tf.GradientTape() as dTape:
             generated = gen(noise, training=True)
+            del noise
             fakeOutput = disc(generated, training=True)
 
             realOutput = disc(batch, training=True)
@@ -208,6 +209,7 @@ class GAN(object):
 
 
 if __name__ == '__main__':
+    # If this crashes for you, the batch size may need to be lowered.
     sequenceLength = 1200 # Sequence length is this long because the attack lengths are long.
     batchSize = 90
     print("Data points per batch: {0}".format(batchSize * sequenceLength * 51))
@@ -219,5 +221,7 @@ if __name__ == '__main__':
     gan = GAN(sequenceLength)
     gan.train(epochs=1, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
     gan.train(epochs=1, data=normal, trainGenerator=True)
-    gan.train(epochs=10, data=attackDatIter, trainDescriminator=True, trainGenerator=True)
+    batchSize = 20  # Training both at the same time requires large amounts of data to be put in memory for each batch
+    normal.batchSize = batchSize
+    gan.train(epochs=10, data=normal, trainDescriminator=True, trainGenerator=True)
     z = 3
