@@ -88,6 +88,9 @@ class SequencedDataIterator(object):
             raise Exception(
                 "Both self.includeData and self.includeLabel are False. You messed up creating the iterator")
         try:
+            if self.includeData and self.includeLabel:
+                return sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze(), sliding_window_view(
+                    labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
             if self.includeData:
                 # Data
                 data = np.array(list(data)).squeeze(0)

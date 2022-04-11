@@ -146,6 +146,20 @@ class GAN(object):
                     genAvg = round(float(totalLoss) / batchesCompleted, 8)
                     batchIter.set_description(f"Gen Loss: {genLoss}\tAvg Gen Loss: {genAvg}\t")
 
+    def test_disc(self, dataLabelIter):
+        batchIter = dataLabelIter if not self._useProgressBar else tqdm(dataLabelIter)
+        dataPointsTested = 0
+        totalLoss = 0
+        for batchData, batchLabel in batchIter:
+            batchOut = self.discriminator(batchData)
+            dataPointsTested += len(batchData)
+            totalLoss += float(self.loss(batchLabel.reshape(batchOut.shape), batchOut))
+            if self._useProgressBar:
+                batchIter.set_description(f"Total Loss: {totalLoss}\tAverage Loss: {totalLoss / dataPointsTested}")
+        if dataPointsTested == 0:
+            return totalLoss, 0
+        return totalLoss, totalLoss / dataPointsTested
+
     @staticmethod
     @tf.function
     def generatorLoss(loss, fakeOutput):
@@ -210,18 +224,22 @@ class GAN(object):
 
 if __name__ == '__main__':
     # If this crashes for you, the batch size may need to be lowered.
-    sequenceLength = 1200 # Sequence length is this long because the attack lengths are long.
-    batchSize = 90
-    print("Data points per batch: {0}".format(batchSize * sequenceLength * 51))
-    normalIter = getNormalDataIterator(batchSize, sequenceLength, True)
-    attackDatIter = getAttackDataIterator(batchSize, sequenceLength, True)
-    attackLabelIter = getAttackDataIterator(batchSize, sequenceLength, False, True)
+    sequenceLength = 1200  # Sequence length is this long because the attack lengths are long.
+    testBatchSize = 90  # Only effects how much data is loaded into memory at a time.
+    trainBatchSize = 20  # Training both at the same time requires large amounts of data to be put in memory for each
+    # batch
+    print("Data points per training batch: {0}".format(trainBatchSize * sequenceLength * 51))
+    print("Data points per testing batch: {0}".format(testBatchSize * sequenceLength * 51))
+    normalIter = getNormalDataIterator(trainBatchSize, sequenceLength, True)
+    attackIter = getAttackDataIterator(testBatchSize, sequenceLength, True, True)
 
-    normal = normalIter
     gan = GAN(sequenceLength)
-    gan.train(epochs=1, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
-    gan.train(epochs=1, data=normal, trainGenerator=True)
-    batchSize = 20  # Training both at the same time requires large amounts of data to be put in memory for each batch
-    normal.batchSize = batchSize
-    gan.train(epochs=10, data=normal, trainDescriminator=True, trainGenerator=True)
-    z = 3
+    # gan.train(epochs=1, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
+    # gan.train(epochs=1, data=normal, trainGenerator=True)
+
+
+
+    for i in range(10):
+        gan.train(epochs=1, data=normalIter, trainDescriminator=True, trainGenerator=True)
+        totalLoss, averageLoss = gan.test_disc(attackIter)
+        attackIter.reset()
