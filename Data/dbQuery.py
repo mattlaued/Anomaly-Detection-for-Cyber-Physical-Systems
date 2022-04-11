@@ -11,7 +11,8 @@ import numpy as np
 
 
 class SequencedDataIterator(object):
-    def __init__(self, batchSize, sequenceLength: int, dbPath: str, tableName: str, includeData: bool, includeLabel: bool):
+    def __init__(self, batchSize, sequenceLength: int, dbPath: str, tableName: str, includeData: bool,
+                 includeLabel: bool):
         if not includeData and not includeLabel:
             raise Exception("At least one of includeData or includeLabel must be True.")
         self.batchSize = batchSize
@@ -27,11 +28,18 @@ class SequencedDataIterator(object):
             0]
         cursor.close()
         con.close()
-
+        self.firstDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
         self.lastDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
 
+    def reset(self):
+        """
+        Resets the iterator to the beginning of the data
+        """
+        self.lastDate = self.firstDate
+
     def getAllRemaining(self):
-        seq = SequencedDataIterator(float('inf'), self.sequenceLength, self.dbPath, self.tableName, self.includeData, self.includeLabel)
+        seq = SequencedDataIterator(float('inf'), self.sequenceLength, self.dbPath, self.tableName, self.includeData,
+                                    self.includeLabel)
         seq.lastDate = self.lastDate
         allRemaining = seq.__next__()
         return allRemaining
@@ -75,17 +83,21 @@ class SequencedDataIterator(object):
             else:
                 data = resultRows
         elif self.includeLabel:
-                labels = resultRows
+            labels = resultRows
         else:
-            raise Exception("Both self.includeData and self.includeLabel are False. You messed up creating the iterator")
-        if self.includeData:
-            # Data
-            data = np.array(list(data)).squeeze(0)
-            return sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
-        if self.includeLabel:
-            # Labels
-            labels = np.array(list(labels)).squeeze(0)
-            return sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+            raise Exception(
+                "Both self.includeData and self.includeLabel are False. You messed up creating the iterator")
+        try:
+            if self.includeData:
+                # Data
+                data = np.array(list(data)).squeeze(0)
+                return sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+            if self.includeLabel:
+                # Labels
+                labels = np.array(list(labels)).squeeze(0)
+                return sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+        except:
+            raise StopIteration
 
 
 def getNormalDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False):
@@ -112,6 +124,7 @@ def getAttackDataIterator(batchSize, sequenceLength: int, includeData=False, inc
     if not includeData and not includeLabel:
         raise Exception("At least one of includeData or includeLabel must be True.")
     return SequencedDataIterator(batchSize, sequenceLength, AttackDBPath(), "Attack", includeData, includeLabel)
+
 
 if __name__ == '__main__':
     iterator = getAttackDataIterator(1000, 100)

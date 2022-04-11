@@ -11,4 +11,4 @@ TIME_STEP = timedelta(seconds=1)
 
 
 from Data.setupDB import NormalDBPath, AttackDBPath
-from Data.dbQuery import getAttackDataIterator, getNormalDataIterator
+from Data.dbQuery import getAttackDataIterator, getNormalDataIterator, SequencedDataIterator

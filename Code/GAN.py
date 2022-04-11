@@ -1,18 +1,18 @@
 import numpy as np
 import os
-
+from tqdm import tqdm
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
 
 import time
-from Data import getAttackDataIterator, getNormalDataIterator
+from Data import getAttackDataIterator, getNormalDataIterator, SequencedDataIterator
 
 
-def make_generator_model():
+def make_generator_model(sequenceLength):
     model = tf.keras.Sequential()
     # There are 51 attributes, not counting time stamps and the label
-    model.add(layers.LSTM(1024))
+    model.add(layers.Dense(1024))
 
     model.add(layers.BatchNormalization())
 
@@ -29,16 +29,18 @@ def make_generator_model():
     model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
 
-    model.add(layers.Dense(2))
-    model.add(layers.Softmax())
+    model.add(layers.Dense(sequenceLength * 51))
+    model.add(layers.Reshape((sequenceLength, 51)))
+
+    # model.add(layers.Softmax())
 
     return model
 
 
 def make_discriminator_model():
     model = tf.keras.Sequential()
-    model.add(layers.LSTM(1000))
-
+    # model.add(layers.LSTM(32))
+    model.add(layers.Dense(1024))
     # model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
     #                         input_shape=[28, 28, 1]))
     model.add(layers.LeakyReLU())
@@ -50,7 +52,7 @@ def make_discriminator_model():
     # model.add(layers.Dropout(0.3))
 
     model.add(layers.Flatten())
-    model.add(layers.Dense(2))
+    model.add(layers.Dense(1))
 
     return model
 
@@ -63,26 +65,157 @@ def generatorLoss(fakeOut, loss):
     return loss(tf.ones_like(fakeOut), fakeOut)
 
 
-@tf.function
-def trainStep(batch):
-    pass
-def train(dataset, epochs):
-    pass
+class GAN(object):
+    def __init__(self, genOutputSequenceLength, use_progressBar=True):
+        self._useProgressBar = use_progressBar
+        self.generator = make_generator_model(genOutputSequenceLength)
+        self.discriminator = make_discriminator_model()
+        self.loss = keras.losses.BinaryFocalCrossentropy(from_logits=True)
+        self.generatorOptimizer = keras.optimizers.Adam(1e-4)
+        self.discriminatorOptimizer = keras.optimizers.Adam(1e-4)
 
+    def train(self, epochs: int, data, trainGenerator=False, trainDescriminator=False, label=None):
+        if not trainGenerator and not trainDescriminator:
+            raise Exception("Both trainGenerator and trainDescriminator are false. Must at least train one.")
+        if (trainDescriminator and not trainGenerator) or (trainGenerator and not trainDescriminator):
+            if trainDescriminator:
+                if label is None:
+                    raise Exception("label cannot be none if only training discriminator")
+                else:
+                    self.train_disc(epochs, data, label)
+            else:
+                self.train_gen(epochs, data)
+        else:
+            for epoch in range(epochs):
+                if isinstance(data, SequencedDataIterator):
+                    data.reset()
+                batchIter = tqdm(data) if self._useProgressBar else data
+                totalGenLoss = 0
+                totalDiscLoss = 0
+                batchesCompleted = 0
+                for batch in batchIter:
+                    genLoss, discLoss = self.trainStep_both(batch, self.generator, self.discriminator, self.loss,
+                                                            self.generatorOptimizer, self.discriminatorOptimizer,
+                                                            trainGenerator, trainDescriminator)
+
+                    totalGenLoss += genLoss
+                    totalDiscLoss += discLoss
+                    batchesCompleted += 1
+                    if self._useProgressBar:
+                        gLoss = round(float(genLoss), 5)
+                        genAvg = round(float(totalGenLoss) / batchesCompleted, 5)
+                        dLoss = round(float(discLoss), 5)
+                        discAvg = round(float(totalDiscLoss) / batchesCompleted, 5)
+
+                        batchIter.set_description(
+                            f"Gen Loss: {gLoss}\tAvg Gen Loss: {genAvg}\tDisc Loss: {dLoss}\tAVG Disc Loss: {discAvg}")
+
+    def train_disc(self, epochs: int, dataIter, labelIter):
+        for epoch in range(epochs):
+            if isinstance(dataIter, SequencedDataIterator):
+                dataIter.reset()
+            if isinstance(labelIter, SequencedDataIterator):
+                labelIter.reset()
+            batchesCompleted = 0
+            totalLoss = 0
+            batchLabelIter = tqdm(zip(dataIter, labelIter)) if self._useProgressBar else zip(dataIter, labelIter)
+            for batch, label in batchLabelIter:
+                discLoss = self.trainStep_disc(batch, label, self.discriminator, self.loss, self.discriminatorOptimizer)
+                totalLoss += discLoss
+                batchesCompleted += 1
+                if self._useProgressBar:
+                    discLoss = round(float(discLoss), 5)
+                    discAvg = round(float(totalLoss) / batchesCompleted, 5)
+                    batchLabelIter.set_description(f"Disc Loss: {discLoss}\tAVG Disc Loss: {discAvg}")
+
+    def train_gen(self, epochs: int, dataIter):
+        for epoch in range(epochs):
+            if isinstance(dataIter, SequencedDataIterator):
+                dataIter.reset()
+            batchesCompleted = 0
+            totalLoss = 0
+            batchIter = tqdm(dataIter) if self._useProgressBar else dataIter
+            for batch in batchIter:
+                genLoss = self.trainStep_gen(batch, self.generator, self.discriminator, self.loss,
+                                             self.generatorOptimizer)
+                totalLoss += genLoss
+                batchesCompleted += 1
+                if self._useProgressBar:
+                    gLoss = round(float(genLoss), 5)
+                    genAvg = round(float(totalLoss) / batchesCompleted, 5)
+                    batchIter.set_description(f"Gen Loss: {gLoss}\tAvg Gen Loss: {genAvg}\t")
+
+    @staticmethod
+    @tf.function
+    def generatorLoss(loss, fakeOutput):
+        genLoss = loss(tf.ones_like(fakeOutput), fakeOutput)
+        return genLoss
+
+    @staticmethod
+    @tf.function
+    def discriminatorLoss(loss, realOutput, fakeOutput):
+        realLoss = loss(tf.ones_like(realOutput), realOutput)
+        fakeLoss = loss(tf.zeros_like(fakeOutput), fakeOutput)
+        discLoss = realLoss + fakeLoss
+        return discLoss
+
+    @staticmethod
+    @tf.function
+    def trainStep_both(batch, gen, disc, loss, genOpt, discOpt):
+        noise = tf.random.normal(batch.shape)
+        with tf.GradientTape() as gTape, tf.GradientTape() as dTape:
+            generated = gen(noise, training=True)
+            fakeOutput = disc(generated, training=True)
+
+            realOutput = disc(batch, training=True)
+
+            genLoss = GAN.generatorLoss(loss, fakeOutput)
+            discLoss = GAN.discriminatorLoss(loss, realOutput, fakeOutput)
+        # Get Gradients
+        genGradients = gTape.gradient(genLoss, gen.trainable_variables)
+        discGradients = dTape.gradient(discLoss, disc.trainable_variables)
+        # Apply Optimizer
+        genOpt.apply_gradients(zip(genGradients, gen.trainable_variables))
+        discOpt.apply_gradients(zip(discGradients, disc.trainable_variables))
+        return genLoss, discLoss
+
+    @staticmethod
+    @tf.function
+    def trainStep_gen(batch, gen, disc, loss, genOpt):
+        noise = tf.random.normal(batch.shape)
+        with tf.GradientTape() as tape:
+            generated = gen(noise, training=True)
+            fakeOutput = disc(generated, training=True)
+
+            genLoss = GAN.generatorLoss(loss, fakeOutput)
+
+        # Get Gradients
+        genGradients = tape.gradient(genLoss, gen.trainable_variables)
+        # Apply Optimizer
+        genOpt.apply_gradients(zip(genGradients, gen.trainable_variables))
+        return genLoss
+
+    @staticmethod
+    @tf.function
+    def trainStep_disc(batchTrain, batchLabel, disc, loss, discOpt):
+        with tf.GradientTape() as tape:
+            batchOut = disc(batchTrain)
+            batchLoss = loss(batchLabel, batchOut)
+        discGrad = tape.gradient(batchLoss, disc.trainable_variables)
+        discOpt.apply_gradients(zip(discGrad, disc.trainable_variables))
+        return batchLoss
 
 
 if __name__ == '__main__':
-    # normal = getNormalDataIterator(10, 5,)
-    attack = getAttackDataIterator(20, sequenceLength=10, includeData=False, includeLabel=True)
-    generator = make_generator_model()
-    generator.compile()
-    out = generator(tf.constant(attack1.__next__()))
-    attack2 = generator
-    # attackLabels = attack.getAllRemaining()
-    # data = attack2.getAllRemaining()
-    # attackData = attack2.getAllRemaining()
+    sequenceLength = 1000 # Sequence length is this long because the attack lengths are long.
+    batchSize = 150
+    normalIter = getNormalDataIterator(batchSize, sequenceLength, True)
+    attackDatIter = getAttackDataIterator(batchSize, sequenceLength, True)
+    attackLabelIter = getAttackDataIterator(batchSize, sequenceLength, False, True)
 
-    focal = keras.losses.BinaryFocalCrossentropy(from_logits=True)
-    generatorOptimizer = keras.optimizers.Adam(1e-4)
-    discriminatorOptimizer = keras.optimizers.Adam(1e-4)
+    normal = normalIter
+    gan = GAN(sequenceLength)
+    gan.train(epochs=10, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
+    gan.train(epochs=10, data=normal, trainGenerator=True)
+    gan.train(epochs=10, data=attackDatIter, trainDescriminator=True, trainGenerator=True)
     z = 3
