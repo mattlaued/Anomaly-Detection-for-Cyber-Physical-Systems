@@ -225,7 +225,8 @@ class GAN(object):
 if __name__ == '__main__':
     # If this crashes for you, the batch size may need to be lowered.
     sequenceLength = 1200  # Sequence length is this long because the attack lengths are long.
-    testBatchSize = 90  # Only effects how much data is loaded into memory at a time.
+    testBatchSize = 60  # Only effects how much data is loaded into memory at a time. Higher values does not
+    # necessarily mean it will run faster
     trainBatchSize = 20  # Training both at the same time requires large amounts of data to be put in memory for each
     # batch
     print("Data points per training batch: {0}".format(trainBatchSize * sequenceLength * 51))
@@ -242,4 +243,4 @@ if __name__ == '__main__':
     for i in range(10):
         gan.train(epochs=1, data=normalIter, trainDescriminator=True, trainGenerator=True)
         totalLoss, averageLoss = gan.test_disc(attackIter)
-        attackIter.reset()
+

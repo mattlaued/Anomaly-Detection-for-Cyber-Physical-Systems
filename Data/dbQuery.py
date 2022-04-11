@@ -45,6 +45,7 @@ class SequencedDataIterator(object):
         return allRemaining
 
     def __iter__(self):
+        self.reset()
         return self
 
     def selectNextNRows(self, numRows):
