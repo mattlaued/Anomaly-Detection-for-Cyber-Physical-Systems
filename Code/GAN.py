@@ -224,7 +224,7 @@ class GAN(object):
 
 if __name__ == '__main__':
     # If this crashes for you, the batch size may need to be lowered.
-    sequenceLength = 1200  # Sequence length is this long because the attack lengths are long.
+    sequenceLength = 16  # Sequence length is this long because the attack lengths are long.
     testBatchSize = 60  # Only effects how much data is loaded into memory at a time. Higher values does not
     # necessarily mean it will run faster
     trainBatchSize = 20  # Training both at the same time requires large amounts of data to be put in memory for each
