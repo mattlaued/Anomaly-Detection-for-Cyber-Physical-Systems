@@ -8,6 +8,7 @@ from datetime import datetime
 from Data import NormalDBPath, AttackDBPath, ALL_COLUMNS, DATE_FORMAT, TIME_STEP
 from numpy.lib.stride_tricks import sliding_window_view
 import numpy as np
+from math import floor
 
 
 class SequencedDataIterator(object):
@@ -26,10 +27,20 @@ class SequencedDataIterator(object):
         cursor = con.cursor()
         firstTimeStamp = list(cursor.execute("SELECT {0} FROM {1} LIMIT 1".format(ALL_COLUMNS[0], self.tableName)))[0][
             0]
+        self.numRows = list(cursor.execute("SELECT COUNT({0}) FROM {1}".format(ALL_COLUMNS[0], self.tableName)))[0][0]
         cursor.close()
         con.close()
         self.firstDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
         self.lastDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
+        if self.batchSize == float('inf'):
+            self._len = 1
+        else:
+            self._len = floor(self.numRows / self.batchSize) + (self.batchSize % self.sequenceLength)
+
+    def __len__(self):
+        return self._len
+
+
 
     def reset(self):
         """
@@ -37,12 +48,21 @@ class SequencedDataIterator(object):
         """
         self.lastDate = self.firstDate
 
-    def getAllRemaining(self):
-        seq = SequencedDataIterator(float('inf'), self.sequenceLength, self.dbPath, self.tableName, self.includeData,
-                                    self.includeLabel)
-        seq.lastDate = self.lastDate
-        allRemaining = seq.__next__()
-        return allRemaining
+    def to_numpy(self):
+        seqs = []
+        if self.includeData:
+            seqs.append(
+                SequencedDataIterator(float('inf'), self.sequenceLength, self.dbPath, self.tableName, True,
+                                      False).selectNextNRows(float('inf')).__next__())
+        if self.includeLabel:
+            seqs.append(
+                SequencedDataIterator(1, self.sequenceLength, self.dbPath, self.tableName, False, True).selectNextNRows(
+                    float('inf')).__next__().squeeze())
+
+        if len(seqs) == 1:
+            return seqs[0]
+        else:
+            return seqs[0], seqs[1]
 
     def __iter__(self):
         self.reset()
@@ -78,17 +98,15 @@ class SequencedDataIterator(object):
     def __next__(self):
         numRows = self.sequenceLength + self.batchSize - 1
         resultRows = self.selectNextNRows(numRows)
-        if self.includeData:
-            if self.includeLabel:
-                data, labels = resultRows
-            else:
-                data = resultRows
-        elif self.includeLabel:
-            labels = resultRows
-        else:
-            raise Exception(
-                "Both self.includeData and self.includeLabel are False. You messed up creating the iterator")
         try:
+            if self.includeData:
+                if self.includeLabel:
+                    data, labels = resultRows
+                else:
+                    data = resultRows
+            elif self.includeLabel:
+                labels = resultRows
+
             if self.includeData and self.includeLabel:
                 return sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze(), sliding_window_view(
                     labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
@@ -103,6 +121,16 @@ class SequencedDataIterator(object):
         except:
             raise StopIteration
 
+def getNormalData():
+    """
+    :return: An numpy ndarray of the normal data
+    """
+    return SequencedDataIterator(float('inf'), 1, NormalDBPath(), "Normal", True, False).to_numpy()
+def getAttackData():
+    """
+    :return: two numpy ndarrays. First with the column data, and the second with the label data
+    """
+    return SequencedDataIterator(1, 1, AttackDBPath(), "Attack", True, True).to_numpy()
 
 def getNormalDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False):
     """
