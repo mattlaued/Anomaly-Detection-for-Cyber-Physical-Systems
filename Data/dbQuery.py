@@ -37,7 +37,7 @@ class SequencedDataIterator(object):
         elif self.batchSize == float('inf'):
             self._len = 1
         else:
-            self._len = floor(self.numRows / self.batchSize) + (self.batchSize % self.sequenceLength)
+            self._len = floor(self.numRows / self.batchSize) - (self.sequenceLength % self.batchSize) #floor(self.numRows / self.batchSize) + (self.batchSize % self.sequenceLength)
     def __len__(self):
         return self._len
 
