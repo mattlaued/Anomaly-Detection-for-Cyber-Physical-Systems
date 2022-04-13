@@ -33,16 +33,21 @@ def __pathToDB():
     if repoName not in folders:
         raise "Path Error: Is the repo name not \'{0}\'?".format(repoName)
     folders = folders[:folders.index(repoName) + 1]
-    dbPath = "/".join(folders) + "/Data/"
+    dbPath = "/".join(folders) + "/Data"
     return dbPath
+
+def Normal_0DBPath():
+    return os.path.join(__pathToDB(), "Normal_0.db")
+def Normal_1DBPath():
+    return os.path.join(__pathToDB(), "Normal_1.db")
 
 
 def NormalDBPath():
-    return __pathToDB() + "Normal.db"
+    return os.path.join(__pathToDB(), "Normal.db")
 
 
 def AttackDBPath():
-    return __pathToDB() + "Attack.db"
+    return os.path.join(__pathToDB(), "Attack.db")
 
 
 class StdevFunc:
@@ -166,24 +171,25 @@ def createTable(name, tableName, skipRows, tempDBPath):
 
 def createTables():
     fNames = ["SWaT_Dataset_Normal_v0", "SWaT_Dataset_Normal_v1", "SWaT_Dataset_Attack_v0"]
+    dbPaths = [Normal_0DBPath(), Normal_1DBPath(), AttackDBPath()]
     tableNames = ["Normal_0", "Normal_1", "Attack"]
     skipRows = [[0], [0], []]
 
     pool = Pool(int(min(len(fNames), cpu_count())))
     asyncResults = []
-    for name, tableName, skiprows in zip(fNames, tableNames, skipRows):
-        tempDBPath = "{0}.db".format(tableName)
-        asyncResults.append(pool.apply_async(createTable, args=(name, tableName, skiprows, tempDBPath)))
+    for name, dbPath, tableName, skiprows in zip(fNames, dbPaths, tableNames, skipRows):
+
+        asyncResults.append(pool.apply_async(createTable, args=(name, tableName, skiprows, dbPath)))
     pool.close()
     pool.join()
     [asyncRes.get() for asyncRes in asyncResults]
 
 
 def combineNormalData():
-    con = sqlite3.connect("Normal.db")
+    con = sqlite3.connect(NormalDBPath())
     cursor = con.cursor()
-    cursor.execute("ATTACH DATABASE 'Normal_0.db' as Normal_0")
-    cursor.execute("ATTACH DATABASE 'Normal_1.db' as Normal_1")
+    cursor.execute(f"ATTACH DATABASE '{Normal_0DBPath()}' as Normal_0")
+    cursor.execute(f"ATTACH DATABASE '{Normal_1DBPath()}' as Normal_1")
     cursor.execute("DROP TABLE IF EXISTS Normal")
     # Note that the UNION operation creates a set of DISTINCT elements. Therefore no duplicates will be included.
     cursor.execute(
@@ -196,10 +202,10 @@ def combineNormalData():
     cursor.close()
     con.close()
     # Remove Normal_0.db and Normal_1.db
-    if os.path.isfile("Normal_0.db"):
-        os.remove("Normal_0.db")
-    if os.path.isfile("Normal_1.db"):
-        os.remove("Normal_1.db")
+    if os.path.isfile(Normal_0DBPath()):
+        os.remove(Normal_0DBPath())
+    if os.path.isfile(Normal_1DBPath()):
+        os.remove(Normal_1DBPath())
 
 def columnMeanStd(dbPath, tableName, col):
     con = sqlite3.connect(dbPath)
@@ -217,7 +223,7 @@ def getNormalColumnMeanStds():
     :return: The means and standard deviations of all real-valued columns in Normal.db
     """
     pool = Pool(int(min(cpu_count(), len(REAL_COLUMNS))))
-    meanStdsAsync = {col: pool.apply_async(columnMeanStd, args=("Normal.db", "Normal", col)) for col in REAL_COLUMNS}
+    meanStdsAsync = {col: pool.apply_async(columnMeanStd, args=(NormalDBPath(), "Normal", col)) for col in REAL_COLUMNS}
     pool.close()
     pool.join()
     meanStds = {col: meanStdsAsync[col].get() for col in REAL_COLUMNS}
@@ -226,7 +232,7 @@ def getNormalColumnMeanStds():
 
 def standardizeTables(colMeanStds: dict):
     pool = Pool(int(min(cpu_count(), 2 * len(colMeanStds))))
-    dbPaths = "Normal.db", "Attack.db"
+    dbPaths = NormalDBPath(), AttackDBPath()
     tableNames = "Normal", "Attack"
     [
         pool.apply_async(standardizeTable, args=(dbPath, tableName, colMeanStds))

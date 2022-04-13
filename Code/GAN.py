@@ -3,7 +3,7 @@ import os
 from tqdm import tqdm
 import tensorflow as tf
 from tensorflow import keras
-from keras import layers
+from keras import layers, activations
 
 import time
 from Data import getAttackDataIterator, getNormalDataIterator, SequencedDataIterator
@@ -39,7 +39,8 @@ def make_generator_model(sequenceLength):
 
 def make_discriminator_model():
     model = tf.keras.Sequential()
-    # model.add(layers.LSTM(32))
+    model.add(layers.Conv1D(10, 5, 2))
+    model.add(layers.Activation(activations.sigmoid))
     model.add(layers.Dense(1024))
     # model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
     #                         input_shape=[28, 28, 1]))
@@ -225,25 +226,27 @@ class GAN(object):
 if __name__ == '__main__':
     # If this crashes for you, the batch size may need to be lowered.
     sequenceLength = 5
-    testBatchSize = 60  # Only effects how much data is loaded into memory at a time. Higher values does not
-    # necessarily mean it will run faster
-    trainBatchSize = 20  # Training both at the same time requires large amounts of data to be put in memory for each
-    # batch
-    print("Data points per training batch: {0}".format(trainBatchSize * sequenceLength * 51))
-    print("Data points per testing batch: {0}".format(testBatchSize * sequenceLength * 51))
-    normalIter = getNormalDataIterator(trainBatchSize, sequenceLength, True)
-    attackIter = getAttackDataIterator(testBatchSize, sequenceLength, True, True)
+    testBatchSize = 16384  # Only effects how much data is loaded into memory at a time. Higher values does not
 
+    print("Data points per testing batch: {0}".format(testBatchSize * sequenceLength * 51))
+
+    attackIter = getAttackDataIterator(testBatchSize, sequenceLength, True, True)
     gan = GAN(sequenceLength)
     # gan.train(epochs=1, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
     # gan.train(epochs=1, data=normal, trainGenerator=True)
     best_avg_discLoss = float('inf')
-    for i in range(10):
+    EPOCHS = 10
+    for i in range(EPOCHS):
+        # trainBatchSize = int(min(max(2 ** (EPOCHS - i + 3), 1), 8192))
+        trainBatchSize = int(min(max(2 ** (EPOCHS - i + 2), 1), 12000))
+        print("Training Batch Size: {0}".format(trainBatchSize))
+        print("Data points per training batch: {0}".format(trainBatchSize * sequenceLength * 51))
+        normalIter = getNormalDataIterator(trainBatchSize, sequenceLength, True)
         gan.train(epochs=1, data=normalIter, trainDescriminator=True, trainGenerator=True)
         totalLoss, averageLoss = gan.test_disc(attackIter)
         if averageLoss < best_avg_discLoss:
             best_avg_discLoss = averageLoss
             gan.discriminator.save_weights(
                 "../Checkpoints/GAN_discriminator_epoch{0}_avg_loss_{1}.ckpt".format(i + 1, averageLoss))
-        gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i + 1))
+    gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i + 1))
 

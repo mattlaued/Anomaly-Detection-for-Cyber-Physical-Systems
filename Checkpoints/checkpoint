@@ -1,0 +1,2 @@
+model_checkpoint_path: "GAN_discriminator_epoch1_avg_loss_6.157545005383135e-05.ckpt"
+all_model_checkpoint_paths: "GAN_discriminator_epoch1_avg_loss_6.157545005383135e-05.ckpt"
