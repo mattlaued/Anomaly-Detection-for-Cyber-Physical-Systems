@@ -32,11 +32,12 @@ class SequencedDataIterator(object):
         con.close()
         self.firstDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
         self.lastDate = datetime.strptime(firstTimeStamp, DATE_FORMAT) - TIME_STEP
-        if self.batchSize == float('inf'):
+        if self.batchSize > self.numRows:
+            self._len = 1
+        elif self.batchSize == float('inf'):
             self._len = 1
         else:
             self._len = floor(self.numRows / self.batchSize) + (self.batchSize % self.sequenceLength)
-
     def __len__(self):
         return self._len
 
