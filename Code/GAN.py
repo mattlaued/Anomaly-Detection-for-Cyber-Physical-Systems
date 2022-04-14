@@ -7,11 +7,13 @@ from keras import layers, activations
 
 import time
 from Data import getAttackDataIterator, getNormalDataIterator, SequencedDataIterator
-
+from Code.GAN.Generator import Generator
 
 def make_generator_model(sequenceLength):
     model = tf.keras.Sequential()
     # There are 51 attributes, not counting time stamps and the label
+    model.add(layers.Conv1D(10, 5, 2))
+    model.add(layers.Activation(activations.sigmoid))
     model.add(layers.Dense(1024))
 
     model.add(layers.BatchNormalization())
@@ -69,7 +71,7 @@ def generatorLoss(fakeOut, loss):
 class GAN(object):
     def __init__(self, genOutputSequenceLength, use_progressBar=True):
         self._useProgressBar = use_progressBar
-        self.generator = make_generator_model(genOutputSequenceLength)
+        self.generator = Generator((genOutputSequenceLength, 51))
         self.discriminator = make_discriminator_model()
         self.generator.compile()
         self.discriminator.compile()
