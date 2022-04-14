@@ -11,24 +11,21 @@ class Generator(Model):
         super(Generator, self).__init__()
         self.conv1 = layers.Conv1D(10, 5, 2)
         self.sig1 = layers.Activation(activations.sigmoid)
-        self.dense1= layers.Dense(1024)
+        self.dense1= layers.Dense(256)
         self. batchNorm1 = layers.BatchNormalization()
         self.dropout1 = layers.Dropout(0.3)
         self.leakyrelu1 = layers.LeakyReLU()
         self.flatten1 = layers.Flatten()
-        self.dense2 = layers.Dense(256)
+        self.dense2 = layers.Dense(512)
         self.batchNorm2 = layers.BatchNormalization()
         self.dropout2 = layers.Dropout(0.2)
         self.leakyrelu2 = layers.LeakyReLU()
-        self.dense3 = layers.Dense(64)
+        self.dense3 = layers.Dense(1024)
         self.batchNorm3 = layers.BatchNormalization()
         self.leakyrelu3 = layers.LeakyReLU()
         self.dense4 = layers.Dense(int(np.prod(outputDim)))
         self.reshape = layers.Reshape(outputDim)
 
-    @staticmethod
-    def formatOutput(output):
-        breakpoint()
 
     def call(self, inputs, training=None, mask=None):
         out = self.conv1(inputs)

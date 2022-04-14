@@ -8,6 +8,7 @@ from keras import layers, activations
 import time
 from Data import getAttackDataIterator, getNormalDataIterator, SequencedDataIterator
 from Code.GAN.Generator import Generator
+from Code.GAN.Discriminator import Discriminator
 
 def make_generator_model(sequenceLength):
     model = tf.keras.Sequential()
@@ -41,13 +42,15 @@ def make_generator_model(sequenceLength):
 
 def make_discriminator_model():
     model = tf.keras.Sequential()
-    model.add(layers.Conv1D(10, 5, 2))
+    model.add(layers.RNN(layers.LSTMCell(512)))
+    # model.add(layers.Conv1D(10, 5, 2))
+    model.add(layers.Dropout(0.05))
     model.add(layers.Activation(activations.sigmoid))
     model.add(layers.Dense(1024))
     # model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
     #                         input_shape=[28, 28, 1]))
     model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.3))
+    model.add(layers.Dropout(0.05))
     model.add(layers.Dense(256))
 
     # model.add(layers.Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
@@ -72,12 +75,12 @@ class GAN(object):
     def __init__(self, genOutputSequenceLength, use_progressBar=True):
         self._useProgressBar = use_progressBar
         self.generator = Generator((genOutputSequenceLength, 51))
-        self.discriminator = make_discriminator_model()
+        self.discriminator = Discriminator()#make_discriminator_model()
         self.generator.compile()
         self.discriminator.compile()
         self.loss = keras.losses.BinaryFocalCrossentropy(from_logits=True)
-        self.generatorOptimizer = keras.optimizers.Adam(1e-4)
-        self.discriminatorOptimizer = keras.optimizers.Adam(1e-4)
+        self.generatorOptimizer = keras.optimizers.Adam(1e-8)
+        self.discriminatorOptimizer = keras.optimizers.Adam(1e-8)
 
     def train(self, epochs: int, data, trainGenerator=False, trainDescriminator=False, label=None):
         if not trainGenerator and not trainDescriminator:
@@ -237,18 +240,22 @@ if __name__ == '__main__':
     # gan.train(epochs=1, data=attackDatIter, label=attackLabelIter, trainDescriminator=True)
     # gan.train(epochs=1, data=normal, trainGenerator=True)
     best_avg_discLoss = float('inf')
-    EPOCHS = 10
-    for i in range(EPOCHS):
+    # EPOCHS = 200
+    i = 0
+    while True:
+        i += 1
         # trainBatchSize = int(min(max(2 ** (EPOCHS - i + 3), 1), 8192))
-        trainBatchSize = int(min(max(2 ** (EPOCHS - i + 2), 1), 12000))
-        print("Training Batch Size: {0}".format(trainBatchSize))
+        trainBatchSize = int(min(max(2 ** (14 - i), 128), 12000))
+        print("Epoch {1}, Training Batch Size: {0}".format(trainBatchSize, i))
         print("Data points per training batch: {0}".format(trainBatchSize * sequenceLength * 51))
         normalIter = getNormalDataIterator(trainBatchSize, sequenceLength, True)
         gan.train(epochs=1, data=normalIter, trainDescriminator=True, trainGenerator=True)
         totalLoss, averageLoss = gan.test_disc(attackIter)
-        if averageLoss < best_avg_discLoss:
-            best_avg_discLoss = averageLoss
-            gan.discriminator.save_weights(
-                "../Checkpoints/GAN_discriminator_epoch{0}_avg_loss_{1}.ckpt".format(i + 1, averageLoss))
-    gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i + 1))
+        if i > 9:
+            if averageLoss < best_avg_discLoss:
+                best_avg_discLoss = averageLoss
+                gan.discriminator.save_weights(
+                    "../Checkpoints/GAN_discriminator_epoch{0}_avg_loss_{1}.ckpt".format(i + 1, averageLoss))
+            if i % 10 == 0:
+                gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i + 1))
 
