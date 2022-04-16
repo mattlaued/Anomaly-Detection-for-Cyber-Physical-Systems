@@ -8,10 +8,13 @@ single database. Next the data is preprocessed. At the time or writing, the data
 try:
     from Data import REAL_COLUMNS
 except:
-    REAL_COLUMNS = ['FIT101', 'LIT101', 'AIT201', 'AIT202', 'AIT203', 'FIT201', 'DPIT301', 'FIT301', 'LIT301', 'AIT401',
-                    'AIT402',
-                    'FIT401', 'LIT401', 'AIT501', 'AIT502', 'AIT503', 'AIT504', 'FIT501', 'FIT502', 'FIT503', 'FIT504',
-                    'PIT501', 'PIT502', 'PIT503', 'FIT601']
+    REAL_COLUMNS = ALL_COLUMNS = ['Timestamp', 'FIT101', 'LIT101', 'MV101', 'P101', 'P102', 'AIT201', 'AIT202',
+                                  'AIT203', 'FIT201', 'MV201', 'P201', 'P202', 'P203', 'P204', 'P205', 'P206',
+                                  'DPIT301', 'FIT301', 'LIT301', 'MV301', 'MV302', 'MV303', 'MV304', 'P301', 'P302',
+                                  'AIT401', 'AIT402', 'FIT401', 'LIT401', 'P401', 'P402', 'P403', 'P404', 'UV401',
+                                  'AIT501', 'AIT502', 'AIT503', 'AIT504', 'FIT501', 'FIT502', 'FIT503', 'FIT504',
+                                  'P501', 'P502', 'PIT501', 'PIT502', 'PIT503', 'FIT601', 'P601', 'P602', 'P603',
+                                  'ATTACK'][1:-1]
 import pandas as pd
 import sqlite3
 import time
@@ -103,38 +106,38 @@ def createTable(name, tableName, skipRows, tempDBPath):
     Timestamp TIMESTAMP,
     FIT101 REAL,
     LIT101 REAL,
-    MV101 INTEGER,
-    P101 INTEGER,
-    P102 INTEGER,
+    MV101 REAL,
+    P101 REAL,
+    P102 REAL,
     AIT201 REAL,
     AIT202 REAL,
     AIT203 REAL,
     FIT201 REAL,
-    MV201 INTEGER,
-    P201 INTEGER,
-    P202 INTEGER,
-    P203 INTEGER,
-    P204 INTEGER,
-    P205 INTEGER,
-    P206 INTEGER,
+    MV201 REAL,
+    P201 REAL,
+    P202 REAL,
+    P203 REAL,
+    P204 REAL,
+    P205 REAL,
+    P206 REAL,
     DPIT301 REAL,
     FIT301 REAL,
     LIT301 REAL,
-    MV301 INTEGER,
-    MV302 INTEGER,
-    MV303 INTEGER,
-    MV304 INTEGER,
-    P301 INTEGER,
-    P302 INTEGER,
+    MV301 REAL,
+    MV302 REAL,
+    MV303 REAL,
+    MV304 REAL,
+    P301 REAL,
+    P302 REAL,
     AIT401 REAL,
     AIT402 REAL,
     FIT401 REAL,
     LIT401 REAL,
-    P401 INTEGER,
-    P402 INTEGER,
-    P403 INTEGER,
-    P404 INTEGER,
-    UV401 INTEGER,
+    P401 REAL,
+    P402 REAL,
+    P403 REAL,
+    P404 REAL,
+    UV401 REAL,
     AIT501 REAL,
     AIT502 REAL,
     AIT503 REAL,
@@ -143,16 +146,16 @@ def createTable(name, tableName, skipRows, tempDBPath):
     FIT502 REAL,
     FIT503 REAL,
     FIT504 REAL,
-    P501 INTEGER,
-    P502 INTEGER,
+    P501 REAL,
+    P502 REAL,
     PIT501 REAL,
     PIT502 REAL,
     PIT503 REAL,
     FIT601 REAL,
-    P601 INTEGER,
-    P602 INTEGER,
-    P603 INTEGER,
-    ATTACK INTEGER,
+    P601 REAL,
+    P602 REAL,
+    P603 REAL,
+    ATTACK REAL,
     PRIMARY KEY (Timestamp)
             );
             """)
@@ -253,6 +256,8 @@ def standardizeTable(dbPath, tableName, colMeanSTD):
     # setStrings = []
     setString = ",\n".join([
         "{0} = standardize({0}, {1}, {2})".format(col, colMeanSTD[col][0], colMeanSTD[col][1])
+        if colMeanSTD[col][1] != 0 else
+        f"{col} = {col} - {colMeanSTD[col][0]}"
         for col in colMeanSTD
     ])
     updateString = """UPDATE {0}
