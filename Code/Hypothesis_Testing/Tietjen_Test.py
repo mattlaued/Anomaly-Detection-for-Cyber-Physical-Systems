@@ -13,8 +13,6 @@ from concurrent.futures import ProcessPoolExecutor
 import sqlite3
 
 
-
-
 def createConnection(dbPathTables: dict, dbUsePath, mainTableName):
     tableNames = []
     con = sqlite3.connect(dbUsePath)
@@ -54,7 +52,6 @@ def TietjenStatistic_DB(cols, kRange, dbPathTables: dict, dbUsePath, mainTableNa
     avgs = avgsAndCount[:-1]
     del avgsAndCount
 
-
     z_col_str = lambda col, avg: f"""
             SELECT {col}_z
             FROM (
@@ -88,13 +85,12 @@ def TietjenStatistic_DB(cols, kRange, dbPathTables: dict, dbUsePath, mainTableNa
     # This WILL cause problems on computers with less ram if max_workers is too high.
     futures = []
     for col, avg in zip(cols, avgs):
-         futures.append(executor.submit(TienjenStatistic, conInfo, col, queryString(col, avg), kList, module))
-        # future.add_done_callback(futureCallback)
+        futures.append(executor.submit(TienjenStatistic, conInfo, col, queryString(col, avg), kList, module))
+    # future.add_done_callback(futureCallback)
     executor.shutdown()
     for future in futures:
         args = future.result()
         InsertIntoTable(*args)
-
 
 
 def InsertIntoTable(npE, kRange, col, conInfo):
@@ -144,9 +140,6 @@ def TienjenStatistic(conInfo, col, queryString, kRange, module):
     return npE, kRange, col, conInfo
 
 
-
-
-
 if __name__ == '__main__':
     # Number of attack rows: 5484
     # Columns to test: AIT501, AIT503, FIT502
@@ -157,4 +150,3 @@ if __name__ == '__main__':
         module = 'np'
     tietJenStatistics = TietjenStatistic_DB(ALL_COLUMNS[1:-1], range(1, 20000), dbTableDict, "Tietjen.db",
                                             "Tietjen_Statistics", module='cp')
-
