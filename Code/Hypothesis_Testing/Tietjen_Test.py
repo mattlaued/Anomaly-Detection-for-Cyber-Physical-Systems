@@ -263,9 +263,7 @@ def TienjenStatistic(conInfo, col, queryString, kRange, module):
 
 
 if __name__ == '__main__':
-    pass # Comment this line if you want to run again. It will recreate the database and take a while to run
-    # (I'm running this on a graphics card and it took a while)
-
+    
     # Number of attack rows: 5484
     # Columns to test: AIT501, AIT503, FIT502
     dbTableDict = {NormalDBPath(): ["Normal"], AttackDBPath(): ["Attack"]}
