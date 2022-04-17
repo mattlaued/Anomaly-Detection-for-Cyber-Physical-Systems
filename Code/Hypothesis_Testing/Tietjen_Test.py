@@ -7,127 +7,12 @@ try:
     import cupy as cp
 except:
     pass
-from multiprocessing import Pool, cpu_count, Process
-from threading import Thread
-from numba import jit
-from typing import Union, List
 from Data import ALL_COLUMNS
 from Data.setupDB import AttackDBPath, NormalDBPath
 from concurrent.futures import ProcessPoolExecutor
 import sqlite3
 
-from Data import getAttackData
 
-data, label = getAttackData()
-
-
-def tietjen(
-        x: Union[List, np.ndarray],
-        k: int,
-        hypo: bool = False,
-        alpha: float = 0.05) -> Union[np.ndarray, bool]:
-    """Tietjen-Moore test [1]_ to detect multiple outliers in a univariate
-    data set that follows an approximately normal distribution.
-    The Tietjen-Moore test [2]_ is a generalization of the Grubbs' test to
-    the case of multiple outliers. If testing for a single outlier,
-    the Tietjen-Moore test is equivalent to the Grubbs' test.
-
-    The null hypothesis implies that there are no outliers in the data set.
-
-    Parameters
-    ----------
-    x : Union[List, np.ndarray]
-        An array, any object exposing the array interface, containing
-        data to test for an outlier in.
-
-    k : int
-        Number of potential outliers to test for. Function tests for
-        outliers in both tails.
-
-    hypo : bool = False
-        Specifies whether to return a bool value of a hypothesis test result.
-        Returns ``True`` when we can reject the null hypothesis.
-        Otherwise, ``False``. Available options are:
-
-        - ``True``: return a hypothesis test result
-        - ``False``: return a filtered array without outliers (default).
-
-    alpha : float = 0.05
-        Significance level for a hypothesis test.
-
-    Returns
-    -------
-    Union[numpy.ndarray, bool]
-        Returns a filtered array if alternative hypothesis is true, otherwise
-        an unfiltered array. Returns null hypothesis test result instead of an
-        array if ``hypo`` argument is set to True.
-
-    Notes
-    -----
-    .. [1] Tietjen and Moore (August 1972), Some Grubbs-Type Statistics
-        for the Detection of Outliers, Technometrics, 14(3), pp. 583-597.
-    .. [2] http://www.itl.nist.gov/div898/handbook/eda/section3/eda35h2.htm
-
-    Examples
-    --------
-    # >>> x = np.array([-1.40, -0.44, -0.30, -0.24, -0.22, -0.13, -0.05, 0.06,
-    0.10, 0.18, 0.20, 0.39, 0.48, 0.63, 1.01])
-    # >>> outliers_tietjen(x, 2)
-    array([-0.44, -0.3 , -0.24, -0.22, -0.13, -0.05,  0.06,  0.1 ,  0.18,
-    0.2 ,  0.39,  0.48,  0.63])
-    """
-    arr = np.copy(x)
-    n = arr.size
-
-    def innerTietjen(x_, k_):
-        x_mean = x_.mean()
-        r = np.abs(x_ - x_mean)
-        z = x_[r.argsort()]
-        E = np.sum((z[:-k_] - z[:-k_].mean()) ** 2) / np.sum((z - x_mean) ** 2)
-        return E
-
-    e_x = innerTietjen(arr, k)
-    e_norm = np.zeros(10000)
-
-    for i in np.arange(10000):
-        norm = np.random.normal(size=n)
-        e_norm[i] = innerTietjen(norm, k)
-
-    CV = np.percentile(e_norm, alpha * 100)
-    result = e_x < CV
-
-    if hypo:
-        return result
-    else:
-        if result:
-            ind = np.argpartition(np.abs(arr - arr.mean()), -k)[-k:]
-            return np.delete(arr, ind)
-        else:
-            return arr
-
-
-# class rFunc:
-#     def step(self, value, mean):
-#         return
-# class TietjenTest:
-#     # def __init__(self):
-#     def step(self, value, mean, k):
-#         r = np.abs(value - mean)
-#         z =
-def innerTietjen_multiAxis(x, k, axis, module=np):
-    x_mean = x.mean(axis=axis)
-    r = module.abs(x - x_mean)
-    z = x[r.argsort(axis=axis)]
-    E = module.sum((z[:-k] - z[:-k].mean(axis=axis)) ** 2, axis=axis) / module.sum((z - x_mean) ** 2, axis=axis)
-    return E
-
-
-@jit(nopython=True)
-def sqlitePower(x, power):
-    return x ** power
-
-
-completed = 0
 
 
 def createConnection(dbPathTables: dict, dbUsePath, mainTableName):
@@ -168,7 +53,7 @@ def TietjenStatistic_DB(cols, kRange, dbPathTables: dict, dbUsePath, mainTableNa
     count = avgsAndCount[-1]
     avgs = avgsAndCount[:-1]
     del avgsAndCount
-    con.create_function("POW", 2, sqlitePower)
+
 
     z_col_str = lambda col, avg: f"""
             SELECT {col}_z
@@ -263,7 +148,6 @@ def TienjenStatistic(conInfo, col, queryString, kRange, module):
 
 
 if __name__ == '__main__':
-    
     # Number of attack rows: 5484
     # Columns to test: AIT501, AIT503, FIT502
     dbTableDict = {NormalDBPath(): ["Normal"], AttackDBPath(): ["Attack"]}
