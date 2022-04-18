@@ -79,8 +79,8 @@ class GAN(object):
         self.generator.compile()
         self.discriminator.compile()
         self.loss = keras.losses.BinaryFocalCrossentropy(from_logits=True)
-        self.generatorOptimizer = keras.optimizers.Adam(1e-8)
-        self.discriminatorOptimizer = keras.optimizers.Adam(1e-8)
+        self.generatorOptimizer = keras.optimizers.Adam(1e-9)
+        self.discriminatorOptimizer = keras.optimizers.Adam(1e-9)
 
     def train(self, epochs: int, data, trainGenerator=False, trainDescriminator=False, label=None):
         if not trainGenerator and not trainDescriminator:
@@ -242,10 +242,11 @@ if __name__ == '__main__':
     best_avg_discLoss = float('inf')
     # EPOCHS = 200
     i = 0
+    trainBatchSize = 128 #int(min(max(2 ** (14 - i), 128), 12000))
     while True:
         i += 1
         # trainBatchSize = int(min(max(2 ** (EPOCHS - i + 3), 1), 8192))
-        trainBatchSize = int(min(max(2 ** (14 - i), 128), 12000))
+
         print("Epoch {1}, Training Batch Size: {0}".format(trainBatchSize, i))
         print("Data points per training batch: {0}".format(trainBatchSize * sequenceLength * 51))
         normalIter = getNormalDataIterator(trainBatchSize, sequenceLength, True)
