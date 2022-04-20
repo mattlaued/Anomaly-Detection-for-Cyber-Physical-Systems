@@ -27,8 +27,8 @@ class GAN(Model):
         self.discriminator = discriminator
 
     def compile(self,
-              discOpt=keras.optimizers.Adam(5e-3),
-              genOpt=keras.optimizers.Adam(1e-3),
+              discOpt=keras.optimizers.Adam(1e-4),
+              genOpt=keras.optimizers.Adam(1e-4),
               loss=losses.BinaryFocalCrossentropy(),
               metrics=[F1Score(1, name="F1"), metrics.TruePositives(), metrics.TrueNegatives(), metrics.FalsePositives(), metrics.FalseNegatives(), metrics.Accuracy()],
               loss_weights=None,
@@ -85,62 +85,63 @@ if __name__ == '__main__':
     print("\nData points per testing batch: {0}".format(testBatchSize * sequenceLength * 51))
 
     attackIter = getAttackDataIterator(testBatchSize, sequenceLength, True, True)
-    generator = Generator((5, 51))
-    disc = Discriminator()
-    gan = GAN(generator, disc)
-    gan.compile(jit_compile=True)
+    with tf.device('/CPU:0'):
+        generator = Generator((5, 51))
+        disc = Discriminator()
+        gan = GAN(generator, disc)
+        gan.compile(jit_compile=True)
 
 
-    bestF1 = 0
-    # EPOCHS = 200
+        bestF1 = 0
+        # EPOCHS = 200
 
-    # trainBatchSize = 128 #int(min(max(2 ** (14 - i), 128), 12000))
-    trainBatchSizes = defaultdict(lambda: 512)
-    sizes = [8192, 4096, 2048]
-    for index in range(len(sizes)):
-        start = (index * 10 + 1)
-        for epoch in range(start, start + 11):
-            trainBatchSizes[epoch] = sizes[index]
-    shift = 3
-    i = 0
-    normalIter = getNormalDataIterator(8192, 5, True, False)
-    while True:
-        i += 1
-        trainBatchSize = trainBatchSizes[i]
-        trueBatchSize = max(trainBatchSize >> (shift + i - 2), 128)
-        print("\nEpoch {1}, Training Batch Size: {0}".format(trueBatchSize, i))
-        print("Data points per training batch: {0}".format(trueBatchSize * sequenceLength * 51))
-        # normalIter = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(getNormalDataIterator(1, 5, True, False).to_numpy()))
+        # trainBatchSize = 128 #int(min(max(2 ** (14 - i), 128), 12000))
+        trainBatchSizes = defaultdict(lambda: 512)
+        sizes = [8192, 4096, 2048]
+        for index in range(len(sizes)):
+            start = (index * 10 + 1)
+            for epoch in range(start, start + 11):
+                trainBatchSizes[epoch] = sizes[index]
+        shift = 3
+        i = 0
+        normalIter = getNormalDataIterator(8192, 5, True, False)
+        while True:
+            i += 1
+            trainBatchSize = trainBatchSizes[i]
+            trueBatchSize = max(trainBatchSize >> (shift + i - 2), 128)
+            print("\nEpoch {1}, Training Batch Size: {0}".format(trueBatchSize, i))
+            print("Data points per training batch: {0}".format(trueBatchSize * sequenceLength * 51))
+            # normalIter = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(getNormalDataIterator(1, 5, True, False).to_numpy()))
 
-        # windows = normalIter.window(5, drop_remainder=True)
-        # windows.shuffle(len(windows))
+            # windows = normalIter.window(5, drop_remainder=True)
+            # windows.shuffle(len(windows))
 
-        # batches = windows.batch(trainBatchSize, drop_remainder=True)
-        # func = lambda ds: ds.batch(trainBatchSize)
-        # batches = normalIter.window(5, 1,1, True).shuffle(500000).map(func)
-        # trainBatches = jit(lambda batch: [gan.train_step(miniBatch) for miniBatch in batch], nopython=False)
-        iterator = tqdm(normalIter)
-        for batch in iterator:
-            realBatch = np.array(batch)
-            np.random.shuffle(realBatch)
-            batch = realBatch
-            chunks = np.array_split(batch, len(batch) // trueBatchSize)
-            for chunk in chunks:
-                ret = gan.train_step(chunk)
-                iterator.set_description(str({key: str(float(ret[key].numpy())) for key in ret}))
+            # batches = windows.batch(trainBatchSize, drop_remainder=True)
+            # func = lambda ds: ds.batch(trainBatchSize)
+            # batches = normalIter.window(5, 1,1, True).shuffle(500000).map(func)
+            # trainBatches = jit(lambda batch: [gan.train_step(miniBatch) for miniBatch in batch], nopython=False)
+            iterator = tqdm(normalIter)
+            for batch in iterator:
+                realBatch = np.array(batch)
+                np.random.shuffle(realBatch)
+                batch = realBatch
+                chunks = np.array_split(batch, len(batch) // trueBatchSize)
+                for chunk in chunks:
+                    ret = gan.train_step(chunk)
+                    iterator.set_description(str({key: str(float(ret[key].numpy())) for key in ret}))
 
-        iterator = tqdm(attackIter)
-        f1 = float('-inf')
-        for testBatch in iterator:
-            ret = gan.test_step(testBatch)
-            string = str({key: str(float(ret[key].numpy())) for key in ret})
-            items = string.split(", ")
-            newString = ", ".join(items[:len(items) // 2]) + "\t" + ", ".join(items[len(items) // 2:])
-            iterator.set_description(newString)
-            # accuracy, precision, recall, f1, tp, fp, tn, fn = gan.test_step(testBatch)
-            # iterator.set_description(f"""Accuracy: {accuracy}\tPrecision: {precision}\tRecall: {recall}\tF1: {f1}\tTrue Positives: {tp}\tFalse Positives: {fp}\tTrue Negatives: {tn}\tFalse Negatives: {fn}""")
-        if float(ret['F1']) > bestF1:
-            bestF1 = float(ret['F1'])
-            gan.discriminator.save_weights(
-                "../../Checkpoints/GAN_discriminator_epoch{0}_F1_{1}.ckpt".format(i, bestF1))
-            gan.generator.save_weights("../../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i))
+            iterator = tqdm(attackIter)
+            f1 = float('-inf')
+            for testBatch in iterator:
+                ret = gan.test_step(testBatch)
+                string = str({key: str(float(ret[key].numpy())) for key in ret})
+                items = string.split(", ")
+                newString = ", ".join(items[:len(items) // 2]) + "\t" + ", ".join(items[len(items) // 2:])
+                iterator.set_description(newString)
+                # accuracy, precision, recall, f1, tp, fp, tn, fn = gan.test_step(testBatch)
+                # iterator.set_description(f"""Accuracy: {accuracy}\tPrecision: {precision}\tRecall: {recall}\tF1: {f1}\tTrue Positives: {tp}\tFalse Positives: {fp}\tTrue Negatives: {tn}\tFalse Negatives: {fn}""")
+            if float(ret['F1']) > bestF1:
+                bestF1 = float(ret['F1'])
+                gan.discriminator.save_weights(
+                    "../../Checkpoints/GAN_discriminator_epoch{0}_F1_{1}.ckpt".format(i, bestF1))
+                gan.generator.save_weights("../../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i))

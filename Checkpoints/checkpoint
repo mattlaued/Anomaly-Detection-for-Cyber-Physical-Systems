@@ -1,2 +1,0 @@
-model_checkpoint_path: "GAN_generator_epoch4.ckpt"
-all_model_checkpoint_paths: "GAN_generator_epoch4.ckpt"
