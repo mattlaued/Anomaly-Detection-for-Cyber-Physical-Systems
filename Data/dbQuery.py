@@ -10,10 +10,10 @@ from numpy.lib.stride_tricks import sliding_window_view
 import numpy as np
 from math import floor
 
-
 class SequencedDataIterator(object):
     def __init__(self, batchSize, sequenceLength: int, dbPath: str, tableName: str, includeData: bool,
                  includeLabel: bool):
+        super(SequencedDataIterator, self).__init__()
         if not includeData and not includeLabel:
             raise Exception("At least one of includeData or includeLabel must be True.")
         self.batchSize = batchSize
@@ -37,9 +37,11 @@ class SequencedDataIterator(object):
         elif self.batchSize == float('inf'):
             self._len = 1
         else:
-            self._len = floor(self.numRows / self.batchSize) #floor(self.numRows / self.batchSize) + (self.batchSize % self.sequenceLength)
+            self._len = floor(self.numRows / self.batchSize) + (self.batchSize % self.sequenceLength)
     def __len__(self):
         return self._len
+    def __call__(self, *args, **kwargs):
+        return self.__next__()
 
 
 
@@ -109,16 +111,19 @@ class SequencedDataIterator(object):
                 labels = resultRows
 
             if self.includeData and self.includeLabel:
-                return sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze(), sliding_window_view(
-                    labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+                datRet = sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+                labelRet = sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+                return datRet, labelRet
             if self.includeData:
                 # Data
                 data = np.array(list(data)).squeeze(0)
-                return sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+                datRet = sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+                return datRet
             if self.includeLabel:
                 # Labels
                 labels = np.array(list(labels)).squeeze(0)
-                return sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+                labelRet = sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+                return labelRet
         except:
             raise StopIteration
 
