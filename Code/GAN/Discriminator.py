@@ -1,4 +1,4 @@
-from keras import layers, Model
+from keras import layers, Model, activations
 
 
 
@@ -38,7 +38,8 @@ class Discriminator(Model):
 
         self.concat = layers.Concatenate()
         self.dense = layers.Dense(1)
+        self.sig = layers.Activation(activations.sigmoid)
 
     def call(self, inputs, training=None, mask=None):
-        out = self.dense(self.concat([self.lineA(inputs), self.lineB(inputs)]))
+        out = self.sig(self.dense(self.concat([self.lineA(inputs), self.lineB(inputs)])))
         return out

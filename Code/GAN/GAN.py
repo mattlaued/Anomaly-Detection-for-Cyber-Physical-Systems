@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     attackIter = getAttackDataIterator(testBatchSize, sequenceLength, True, True)
     with tf.device('/CPU:0'):
-        generator = Generator((5, 51))
+        generator = Generator((sequenceLength, 51))
         disc = Discriminator()
         gan = GAN(generator, disc)
         gan.compile(jit_compile=True)
@@ -102,24 +102,15 @@ if __name__ == '__main__':
             start = (index * 10 + 1)
             for epoch in range(start, start + 11):
                 trainBatchSizes[epoch] = sizes[index]
-        shift = 3
+        # shift = 7
         i = 0
         normalIter = getNormalDataIterator(8192, 5, True, False)
         while True:
             i += 1
-            trainBatchSize = trainBatchSizes[i]
-            trueBatchSize = max(trainBatchSize >> (shift + i - 2), 128)
+            # trainBatchSize = trainBatchSizes[i]
+            trueBatchSize = 256 # max(trainBatchSize >> (shift + i - 2), 256)
             print("\nEpoch {1}, Training Batch Size: {0}".format(trueBatchSize, i))
             print("Data points per training batch: {0}".format(trueBatchSize * sequenceLength * 51))
-            # normalIter = tf.data.Dataset.from_tensor_slices(tf.convert_to_tensor(getNormalDataIterator(1, 5, True, False).to_numpy()))
-
-            # windows = normalIter.window(5, drop_remainder=True)
-            # windows.shuffle(len(windows))
-
-            # batches = windows.batch(trainBatchSize, drop_remainder=True)
-            # func = lambda ds: ds.batch(trainBatchSize)
-            # batches = normalIter.window(5, 1,1, True).shuffle(500000).map(func)
-            # trainBatches = jit(lambda batch: [gan.train_step(miniBatch) for miniBatch in batch], nopython=False)
             iterator = tqdm(normalIter)
             for batch in iterator:
                 realBatch = np.array(batch)
@@ -128,20 +119,23 @@ if __name__ == '__main__':
                 chunks = np.array_split(batch, len(batch) // trueBatchSize)
                 for chunk in chunks:
                     ret = gan.train_step(chunk)
-                    iterator.set_description(str({key: str(float(ret[key].numpy())) for key in ret}))
+                iterator.set_description(str({key: str(float(ret[key].numpy())) for key in ret}))
+            iterator.close()
 
-            iterator = tqdm(attackIter)
             f1 = float('-inf')
-            for testBatch in iterator:
-                ret = gan.test_step(testBatch)
-                string = str({key: str(float(ret[key].numpy())) for key in ret})
-                items = string.split(", ")
-                newString = ", ".join(items[:len(items) // 2]) + "\t" + ", ".join(items[len(items) // 2:])
-                iterator.set_description(newString)
-                # accuracy, precision, recall, f1, tp, fp, tn, fn = gan.test_step(testBatch)
-                # iterator.set_description(f"""Accuracy: {accuracy}\tPrecision: {precision}\tRecall: {recall}\tF1: {f1}\tTrue Positives: {tp}\tFalse Positives: {fp}\tTrue Negatives: {tn}\tFalse Negatives: {fn}""")
-            if float(ret['F1']) > bestF1:
-                bestF1 = float(ret['F1'])
-                gan.discriminator.save_weights(
-                    "../../Checkpoints/GAN_discriminator_epoch{0}_F1_{1}.ckpt".format(i, bestF1))
-                gan.generator.save_weights("../../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i))
+            if i % 2 == 0:
+                iterator = tqdm(attackIter)
+                for testBatch in iterator:
+                    ret = gan.test_step(testBatch)
+                    string = str({key: str(float(ret[key].numpy())) for key in ret})
+                    items = string.split(", ")
+                    newString = ", ".join(items[:len(items) // 2]) + "\t" + ", ".join(items[len(items) // 2:])
+                    iterator.set_description(newString)
+                    # accuracy, precision, recall, f1, tp, fp, tn, fn = gan.test_step(testBatch)
+                    # iterator.set_description(f"""Accuracy: {accuracy}\tPrecision: {precision}\tRecall: {recall}\tF1: {f1}\tTrue Positives: {tp}\tFalse Positives: {fp}\tTrue Negatives: {tn}\tFalse Negatives: {fn}""")
+                if float(ret['F1']) > bestF1:
+                    bestF1 = float(ret['F1'])
+                    gan.discriminator.save_weights(
+                        "../Checkpoints/GAN_discriminator_epoch{0}_F1_{1}.ckpt".format(i, bestF1))
+                    gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i))
+                iterator.close()
