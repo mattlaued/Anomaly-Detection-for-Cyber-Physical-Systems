@@ -275,6 +275,7 @@ class Transformer(tf.keras.Model):
 
         return final_output, attention_weights
 
+    
     def create_masks(self, input):
         # Encoder padding mask (Used in the 2nd attention block in the decoder too.)
         padding_mask = create_padding_mask(input)
@@ -338,7 +339,7 @@ def accuracy_function(real, pred):
     return tf.reduce_sum(accuracies)/tf.reduce_sum(mask)
 
 
-sequenceLength = 10
+sequenceLength = 5
 train_batchSize = 128
 test_batchSize = 16384
 normal_iter = getNormalDataIterator(train_batchSize, sequenceLength + 1, True)
@@ -351,8 +352,8 @@ transformer = Transformer(
     d_model=d_model,
     num_heads=num_heads,
     dff=dff,
-    input_size=510,
-    target_size=51,
+    input_size=sequenceLength,
+    target_size=1,
     rate=dropout_rate)
 
 checkpoint_path = './Checkpoints/transformer'
@@ -381,7 +382,7 @@ train_step_signature = [
 ]
 
 
-@tf.function(input_signature=train_step_signature)
+# @tf.function(input_signature=train_step_signature)
 def train_step(inp, tar):
     tar_inp = tar[:, :-1]
     tar_real = tar[:, 1:]
@@ -405,7 +406,7 @@ for epoch in range(EPOCHS):
 
     # inp -> portuguese, tar -> english
     for batch, data in enumerate(normal_iter):
-        inp = data[:, :10, :].reshape((train_batchSize, sequenceLength * 51))
+        inp = data[:, :sequenceLength, :].reshape((train_batchSize, sequenceLength * 51))
         tar = data[:, -1, :]
         train_step(inp, tar)
 
