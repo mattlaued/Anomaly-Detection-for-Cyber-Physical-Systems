@@ -1,8 +1,8 @@
 from tqdm import tqdm
 import tensorflow as tf
 from tensorflow import keras
-from keras import layers, activations, metrics, optimizers, losses
-from keras.models import Model
+# from keras import metrics, losses
+# from keras.models import Model
 from tensorflow_addons.metrics import F1Score
 import numpy as np
 from Data import getAttackDataIterator, getNormalDataIterator
@@ -19,7 +19,7 @@ def generatorLoss(fakeOut, loss):
     return loss(tf.ones_like(fakeOut), fakeOut)
 
 
-class GAN(Model):
+class GAN(keras.Model):
     def __init__(self, generator, discriminator, use_progressBar=True):
         super(GAN, self).__init__()
         self._useProgressBar = use_progressBar
@@ -29,8 +29,8 @@ class GAN(Model):
     def compile(self,
               discOpt=keras.optimizers.Adam(1e-4),
               genOpt=keras.optimizers.Adam(1e-4),
-              loss=losses.BinaryFocalCrossentropy(),
-              metrics=[F1Score(1, name="F1"), metrics.TruePositives(), metrics.TrueNegatives(), metrics.FalsePositives(), metrics.FalseNegatives(), metrics.Accuracy()],
+              loss=keras.losses.BinaryFocalCrossentropy(),
+              metrics=[F1Score(1, name="F1"), keras.metrics.TruePositives(), keras.metrics.TrueNegatives(), keras.metrics.FalsePositives(), keras.metrics.FalseNegatives(), keras.metrics.Accuracy()],
               loss_weights=None,
               weighted_metrics=None,
               run_eagerly=None,
@@ -47,13 +47,15 @@ class GAN(Model):
     def train_step(self, data):
         if isinstance(data, tuple):
             data = data[0]
+
         noise = tf.random.normal(data.shape)
         fakeOut = self.generator(noise)
         combined = tf.concat([fakeOut, data], axis=0)
         labels = tf.concat([tf.ones((data.shape[0],)), tf.zeros((data.shape[0],))], axis=0)
         labels += 0.05 * tf.random.uniform(labels.shape)
         with tf.GradientTape() as dTape:
-            discLoss = self.compiled_loss(labels, self.discriminator(combined, training=True))
+            pred = self.discriminator(combined, training=True)
+            discLoss = self.compiled_loss(labels, pred)
         discGrad = dTape.gradient(discLoss, self.discriminator.trainable_weights)
         self.discOptimizer.apply_gradients(
             zip(discGrad, self.discriminator.trainable_weights)
@@ -61,8 +63,11 @@ class GAN(Model):
         misleadingLabels = tf.zeros((data.shape[0], 1))
 
         # noise = tf.random.normal(data.shape)
+
         with tf.GradientTape() as gTape:
-            genLoss = self.compiled_loss(misleadingLabels, self.discriminator(self.generator(noise)))
+            pred = self.discriminator(self.generator(noise))
+
+            genLoss = self.compiled_loss(misleadingLabels, pred)
         genGrad = gTape.gradient(genLoss, self.generator.trainable_weights)
         self.genOptimizer.apply_gradients(zip(genGrad, self.generator.trainable_weights))
         return {"disc loss": discLoss, "gen loss": genLoss}
@@ -86,10 +91,13 @@ if __name__ == '__main__':
 
     attackIter = getAttackDataIterator(testBatchSize, sequenceLength, True, True)
     with tf.device('/CPU:0'):
-        generator = Generator((sequenceLength, 51))
         disc = Discriminator()
+        generator = Generator((sequenceLength, 51))
+        # generator.compile()
+        # disc.compile(jit_compile=True)
         gan = GAN(generator, disc)
-        gan.compile(jit_compile=True)
+        gan.compile()
+
 
 
         bestF1 = 0
@@ -115,27 +123,28 @@ if __name__ == '__main__':
             for batch in iterator:
                 realBatch = np.array(batch)
                 np.random.shuffle(realBatch)
-                batch = realBatch
+                batch = np.ascontiguousarray(realBatch)
                 chunks = np.array_split(batch, len(batch) // trueBatchSize)
                 for chunk in chunks:
-                    ret = gan.train_step(chunk)
+                    ret = gan.train_step(np.ascontiguousarray(chunk))
                 iterator.set_description(str({key: str(float(ret[key].numpy())) for key in ret}))
+            iterator.update(1)
             iterator.close()
 
             f1 = float('-inf')
-            if i % 2 == 0:
-                iterator = tqdm(attackIter)
-                for testBatch in iterator:
-                    ret = gan.test_step(testBatch)
-                    string = str({key: str(float(ret[key].numpy())) for key in ret})
-                    items = string.split(", ")
-                    newString = ", ".join(items[:len(items) // 2]) + "\t" + ", ".join(items[len(items) // 2:])
-                    iterator.set_description(newString)
-                    # accuracy, precision, recall, f1, tp, fp, tn, fn = gan.test_step(testBatch)
-                    # iterator.set_description(f"""Accuracy: {accuracy}\tPrecision: {precision}\tRecall: {recall}\tF1: {f1}\tTrue Positives: {tp}\tFalse Positives: {fp}\tTrue Negatives: {tn}\tFalse Negatives: {fn}""")
-                if float(ret['F1']) > bestF1:
-                    bestF1 = float(ret['F1'])
-                    gan.discriminator.save_weights(
-                        "../Checkpoints/GAN_discriminator_epoch{0}_F1_{1}.ckpt".format(i, bestF1))
-                    gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i))
-                iterator.close()
+            # if i % 5 == 0:
+            iterator = tqdm(attackIter)
+            for testBatch in iterator:
+                ret = gan.test_step(testBatch)
+                string = str({key: str(float(ret[key].numpy())) for key in ret})
+                items = string.split(", ")
+                newString = ", ".join(items[:len(items) // 2]) + "\t" + ", ".join(items[len(items) // 2:])
+                iterator.set_description(newString)
+                # accuracy, precision, recall, f1, tp, fp, tn, fn = gan.test_step(testBatch)
+                # iterator.set_description(f"""Accuracy: {accuracy}\tPrecision: {precision}\tRecall: {recall}\tF1: {f1}\tTrue Positives: {tp}\tFalse Positives: {fp}\tTrue Negatives: {tn}\tFalse Negatives: {fn}""")
+            if float(ret['F1']) > bestF1:
+                bestF1 = float(ret['F1'])
+                gan.discriminator.save_weights(
+                    "../Checkpoints/GAN_discriminator_epoch{0}_F1_{1}.ckpt".format(i, bestF1))
+                gan.generator.save_weights("../Checkpoints/GAN_generator_epoch{0}.ckpt".format(i))
+            iterator.close()
