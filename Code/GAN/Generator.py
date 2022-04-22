@@ -1,74 +1,78 @@
 from keras import layers, activations, Model, models
 import numpy as np
+import tensorflow as tf
 
-# Integer Columns: 2-4, 9-15, 19-24, 29-33, 42-43, 48-50
-INTEGER_COLUMNS = [2, 3, 4] + list(range(9, 16)) + list(range(19, 25)) + list(range(29, 34)) + [42, 43] + list(
-    range(48, 51))
-REAL_COLUMNS = [i for i in range(51) if i not in INTEGER_COLUMNS]
-
-
-class DensePart(layers.Layer):
-    def __init__(self, outputDim: tuple):
-        super(DensePart, self).__init__()
-        self.flatten1 = layers.Flatten()
-        self.dense1 = layers.Dense(outputDim[0] * outputDim[1], use_bias=False, input_shape=outputDim)
+class DenseLayer(layers.Layer):
+    def __init__(self, outputDim):
+        super(DenseLayer, self).__init__()
+        # self.flatten1 = layers.Flatten()
+        self.dense1 = layers.Dense(outputDim, use_bias=False)
         self.batchNorm1 = layers.BatchNormalization()
         self.leakyrelu1 = layers.Activation(activations.leaky_relu)
-        self.reshape1 = layers.Reshape((outputDim[0], outputDim[1]))
 
     def call(self, inputs, *args, **kwargs):
-        out = self.flatten1(inputs)
-        out = self.dense1(out)
+        out = self.dense1(inputs)
         out = self.batchNorm1(out)
         out = self.leakyrelu1(out)
-        out = self.reshape1(out)
         return out
 
-
+#
 class ConvPart(layers.Layer):
-    def __init__(self, outputDim: tuple):
+    def __init__(self, filters, size):
         super(ConvPart, self).__init__()
-        self.conv1 = layers.Conv1DTranspose(128, 5, 1, padding='same', use_bias=False)
+        self.conv1 = layers.Conv1DTranspose(filters, size, 1, padding='same', use_bias=False)
         self.batchNorm2 = layers.BatchNormalization()
         self.leakyrelu2 = layers.Activation(activations.leaky_relu)
-        self.conv2 = layers.Conv1DTranspose(64, 5, 1, padding='same', use_bias=False)
+        self.conv2 = layers.Conv1DTranspose(filters, size, 1, padding='same', use_bias=False)
         self.batchNorm3 = layers.BatchNormalization()
         self.leakyrelu3 = layers.Activation(activations.leaky_relu)
-        self.conv3 = layers.Conv1DTranspose(outputDim[1], 5, 1, padding='same', use_bias=False, activation='tanh')
+        self.conv3 = layers.Conv1DTranspose(51, 5, 1, padding='same', use_bias=False, activation='tanh')
 
     def call(self, inputs, *args, **kwargs):
-        out = self.conv1(inputs)
-        out = self.batchNorm2(out)
-        out = self.leakyrelu2(out)
-        out = self.conv2(out)
-        out = self.batchNorm3(out)
-        out = self.leakyrelu3(out)
-        out = self.conv3(out)
+        with tf.device('/CPU:0'):
+            out = self.conv1(inputs)
+            out = self.batchNorm2(out)
+            out = self.leakyrelu2(out)
+            out = self.conv2(out)
+            out = self.batchNorm3(out)
+            out = self.leakyrelu3(out)
+            out = self.conv3(out)
         return out
 
 
 class Generator(Model):
     def __init__(self, outputDim: tuple):
         super(Generator, self).__init__()
-        self.densePart = DensePart((outputDim[0], 256))
-        self.convPart = ConvPart(outputDim)
 
-        # self.flatten1 = layers.Flatten()
-        # self.dense1 = layers.Dense(outputDim[0] * 256, use_bias=False, input_shape=outputDim)
-        # self.batchNorm1 = layers.BatchNormalization()
-        # self.leakyrelu1 = layers.Activation(activations.leaky_relu)
-        # self.reshape1 = layers.Reshape((outputDim[0], 256))
-        # self.conv1 = layers.Conv1DTranspose(128, 5, 1, padding='same', use_bias=False)
-        # self.batchNorm2 = layers.BatchNormalization()
-        # self.leakyrelu2 = layers.Activation(activations.leaky_relu)
-        #
-        # self.conv2 = layers.Conv1DTranspose(64, 5, 1, padding='same', use_bias=False)
-        # self.batchNorm3 = layers.BatchNormalization()
-        # self.leakyrelu3 = layers.Activation(activations.leaky_relu)
-        #
-        # self.conv3 = layers.Conv1DTranspose(outputDim[1], 5, 1, padding='same', use_bias=False, activation='tanh')
+        self.flatten = layers.Flatten()
+        self.dense1 = DenseLayer(256)
+        self.reshape1 = layers.Reshape((16, 16))
+        self.conv = ConvPart(256, 6)
+        self.flatten2 = layers.Flatten()
+        self.dense2 = DenseLayer(256)
+        self.reshape2 = layers.Reshape((16, 16))
+        self.conv2 = ConvPart(256, 6)
+        self.flatten3 = layers.Flatten()
+        self.dense3 = DenseLayer(int(np.prod(outputDim)))
+        self.reshape3 = layers.Reshape(outputDim)
+        self.conv2 = ConvPart(256, 4)
+        self.conv3 = ConvPart(256, 2)
 
     def call(self, inputs, training=None, mask=None):
-        out = self.densePart(inputs)
-        out = self.convPart(out)
+        out = self.flatten(inputs)
+        out = self.dense1(out)
+        out = self.reshape1(out)
+        out = self.conv(out)
+        out = self.flatten2(out)
+        out = self.dense2(out)
+        out = self.reshape2(out)
+        out = self.conv2(out)
+        out = self.flatten3(out)
+        out = self.dense3(out)
+        out = self.reshape3(out)
+        out = self.conv3(out)
         return out
+
+
+
+
