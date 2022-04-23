@@ -92,7 +92,6 @@ class GAN(keras.Model):
         return {met.name: met.result() for met in self.metrics}
 
 
-
 if __name__ == '__main__':
     # If this crashes for you, the batch size may need to be lowered.
     sequenceLength = 5
