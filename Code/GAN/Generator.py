@@ -2,6 +2,7 @@ from keras import layers, activations, Model, models
 import numpy as np
 import tensorflow as tf
 
+
 class DenseLayer(layers.Layer):
     def __init__(self, outputDim):
         super(DenseLayer, self).__init__()
@@ -16,6 +17,7 @@ class DenseLayer(layers.Layer):
         out = self.leakyrelu1(out)
         return out
 
+
 #
 class ConvPart(layers.Layer):
     def __init__(self, filters, size):
@@ -26,7 +28,6 @@ class ConvPart(layers.Layer):
         self.conv2 = layers.Conv1DTranspose(filters, size, 1, padding='same', use_bias=False)
         self.batchNorm3 = layers.BatchNormalization()
         self.leakyrelu3 = layers.Activation(activations.leaky_relu)
-        self.conv3 = layers.Conv1DTranspose(51, 5, 1, padding='same', use_bias=False, activation='tanh')
 
     def call(self, inputs, *args, **kwargs):
         with tf.device('/CPU:0'):
@@ -36,12 +37,25 @@ class ConvPart(layers.Layer):
             out = self.conv2(out)
             out = self.batchNorm3(out)
             out = self.leakyrelu3(out)
-            out = self.conv3(out)
+        return out
+
+
+class ColLine(layers.Layer):
+    def __init__(self):
+        super(ColLine, self).__init__()
+        self.dense1 = DenseLayer(128)
+        self.dense2 = DenseLayer(64)
+        self.dense3 = layers.Dense(5, activation='tanh')
+
+    def call(self, inputs, *args, **kwargs):
+        out = self.dense1(inputs)
+        out = self.dense2(out)
+        out = self.dense3(out)
         return out
 
 
 class Generator(Model):
-    def __init__(self, outputDim: tuple):
+    def __init__(self):
         super(Generator, self).__init__()
 
         self.flatten = layers.Flatten()
@@ -53,10 +67,11 @@ class Generator(Model):
         self.reshape2 = layers.Reshape((16, 16))
         self.conv2 = ConvPart(256, 6)
         self.flatten3 = layers.Flatten()
-        self.dense3 = DenseLayer(int(np.prod(outputDim)))
-        self.reshape3 = layers.Reshape(outputDim)
+        self.dense3 = DenseLayer(255)
+        self.reshape3 = layers.Reshape((5, 51))
         self.conv2 = ConvPart(256, 4)
         self.conv3 = ConvPart(256, 2)
+        self.convFinal = layers.Conv1DTranspose(51, 5, 1, padding='same', use_bias=False, activation='tanh')
 
     def call(self, inputs, training=None, mask=None):
         out = self.flatten(inputs)
@@ -71,8 +86,18 @@ class Generator(Model):
         out = self.dense3(out)
         out = self.reshape3(out)
         out = self.conv3(out)
+        with tf.device('/CPU:0'):
+            out = self.convFinal(out)
         return out
 
 
+class GeneratorRepeater(Model):
+    def __init__(self, generators: list):
+        super(GeneratorRepeater, self).__init__()
+        self.generators = generators
 
-
+    def call(self, inputs, training=None, mask=None):
+        out = inputs
+        for gen in self.generators:
+            out = gen(out)
+        return out
