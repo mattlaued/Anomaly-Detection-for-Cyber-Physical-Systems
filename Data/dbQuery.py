@@ -12,7 +12,7 @@ from math import floor
 
 class SequencedDataIterator(object):
     def __init__(self, batchSize, sequenceLength: int, dbPath: str, tableName: str, includeData: bool,
-                 includeLabel: bool):
+                 includeLabel: bool, extra=None):
         super(SequencedDataIterator, self).__init__()
         if not includeData and not includeLabel:
             raise Exception("At least one of includeData or includeLabel must be True.")
@@ -22,6 +22,7 @@ class SequencedDataIterator(object):
         self.tableName = tableName
         self.includeData = includeData
         self.includeLabel = includeLabel
+        self.extra = extra
 
         con = sqlite3.connect(self.dbPath)
         cursor = con.cursor()
@@ -95,12 +96,13 @@ class SequencedDataIterator(object):
             con.close()
             if len(data) == 0:
                 raise StopIteration
-            yield np.array(data)
+            yield np.array(data) if colString != labelCol else np.array(data, dtype=np.int)
         self.lastDate += len(data) * TIME_STEP
 
     def __next__(self):
         numRows = self.sequenceLength + self.batchSize - 1
         resultRows = self.selectNextNRows(numRows)
+        retVal = None
         try:
             if self.includeData:
                 if self.includeLabel:
@@ -109,21 +111,34 @@ class SequencedDataIterator(object):
                     data = resultRows
             elif self.includeLabel:
                 labels = resultRows
+            if self.sequenceLength > 1:
+                if self.includeData and self.includeLabel:
+                    datRet = sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+                    labelRet = sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+                    retVal = datRet, labelRet
+                elif self.includeData:
+                    # Data
+                    data = np.array(list(data)).squeeze(0)
+                    datRet = sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
+                    retVal = datRet
+                elif self.includeLabel:
+                    # Labels
+                    labels = np.array(list(labels)).squeeze(0)
+                    labelRet = sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
+                    retVal = labelRet
+            else:
+                if self.includeData:
+                    if self.includeLabel:
+                        retVal = data, labels
+                    else:
+                        retVal = data
+                else:
+                    retVal = labels
+            if self.extra is not None:
+                retVal = self.extra(retVal)
 
-            if self.includeData and self.includeLabel:
-                datRet = sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
-                labelRet = sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
-                return datRet, labelRet
-            if self.includeData:
-                # Data
-                data = np.array(list(data)).squeeze(0)
-                datRet = sliding_window_view(data, (self.sequenceLength, data.shape[-1])).squeeze()
-                return datRet
-            if self.includeLabel:
-                # Labels
-                labels = np.array(list(labels)).squeeze(0)
-                labelRet = sliding_window_view(labels, (self.sequenceLength, labels.shape[-1])).squeeze().max(-1)
-                return labelRet
+            return retVal
+
         except:
             raise StopIteration
 
@@ -138,30 +153,32 @@ def getAttackData():
     """
     return SequencedDataIterator(1, 1, AttackDBPath(), "Attack", True, True).to_numpy()
 
-def getNormalDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False):
+def getNormalDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False, extra=None):
     """
     :param includeData: If False, will only iterate through the labels
     :param includeLabel: If true, will return tuple (train batch, label batch) when iterated through. Otherwise will exclude label
     :param batchSize:
     :param sequenceLength:
+    :param extra: A callable function that will be called on whatever values the iterator returns, the result will be returned instead
     :return: Returns an iterator throught the normal data
     """
     if not includeData and not includeLabel:
         raise Exception("At least one of includeData or includeLabel must be True.")
-    return SequencedDataIterator(batchSize, sequenceLength, NormalDBPath(), "Normal", includeData, includeLabel)
+    return SequencedDataIterator(batchSize, sequenceLength, NormalDBPath(), "Normal", includeData, includeLabel, extra)
 
 
-def getAttackDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False):
+def getAttackDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False, extra=None):
     """
     :param includeData: If False, will only iterate through the labels
     :param includeLabel: If true, will return tuple (train batch, label batch) when iterated through. Otherwise will exclude label
     :param batchSize:
     :param sequenceLength:
+    :param extra: A callable function that will be called on whatever values the iterator returns, the result will be returned instead
     :return: Returns and iterator through the attack data
     """
     if not includeData and not includeLabel:
         raise Exception("At least one of includeData or includeLabel must be True.")
-    return SequencedDataIterator(batchSize, sequenceLength, AttackDBPath(), "Attack", includeData, includeLabel)
+    return SequencedDataIterator(batchSize, sequenceLength, AttackDBPath(), "Attack", includeData, includeLabel, extra)
 
 
 if __name__ == '__main__':
