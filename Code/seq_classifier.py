@@ -152,4 +152,4 @@ if __name__ == '__main__':
     else:
         print('please put \"train\" or \"test\" as argument')
         print('if testing, please put directory of checkpoint as second arg')
-        quit()
+    quit()
