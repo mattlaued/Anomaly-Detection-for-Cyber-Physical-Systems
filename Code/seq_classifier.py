@@ -1,3 +1,4 @@
+from sys import argv
 import time
 import math
 import os
@@ -8,6 +9,7 @@ import numpy as np
 from Data import getAttackDataIterator, getAttackData
 from transformer import Generator
 from tqdm import tqdm
+from sklearn import metrics
 
 def get_diffs_train(model, iter):
     '''
@@ -84,17 +86,33 @@ def train_model(model, optim, epochs, train_data, train_labels, test_data, test_
                     temp = time.time()
             else:
                 print(f'nan loss, discarding batch. epoch {epoch} iteration {i}')
-        print(f'epoch {epoch + 1} complte. testing data...')
-        preds = model(test_data).reshape(test_labels.shape)
-        loss = F.binary_cross_entropy(preds, test_labels)
-        acc = torch.sum(test_labels == preds).item() / test_labels.size(0)
-        print(f'epoch {epoch + 1}: loss {loss}, accuracy {acc}')
-        if chkpts_dir is not None:
-            filepath = chkpts_dir + f'disc/seq_disc_e{epochs}lr001_1_{epoch + 1}.pt'
-            torch.save(model.state_dict(), filepath)
-            print(f'epoch saved to {filepath}')
+        print(f'epoch {epoch + 1} complete.', end=' ')
+        test_model(model, test_data, test_labels, epochs, epoch, chkpts_dir)
+
+def test_model(model, test_data, test_labels, epochs=None, epoch=None, chkpts_dir=None):
+    print('testing data...')
+    model_out = model(test_data).reshape(test_labels.shape)
+    preds = (model_out > torch.tensor([0.5])).float() * 1
+    loss = F.binary_cross_entropy(model_out, test_labels)
+    acc = torch.sum(test_labels == preds).item() / test_labels.size(0)
+    prec, recall, f1, support = metrics.precision_recall_fscore_support(test_labels, preds)
+    f1 = 2 * (prec * recall / (prec + recall))
+    if epoch is not None :
+        print(f'epoch {epoch + 1}:', end=' ')
+    if epoch is None or epoch == epochs - 1:
+        print('final result:', end=' ')
+    print(f'loss {loss}, accuracy {acc}, precision {prec}, recall {recall}, f1 {f1}')
+    if chkpts_dir is not None:
+        filepath = chkpts_dir + f'disc/seq_disc_e{epochs}lr001_1_{epoch + 1}.pt'
+        torch.save(model.state_dict(), filepath)
+        print(f'epoch saved to {filepath}')
 
 if __name__ == '__main__':
+    if len(argv) < 2 or (argv[1] != 'train' and argv[1] != 'test'):
+        print(argv[1])
+        print('please put \"train\" or \"test\" as argument')
+        print('if testing, please put directory of checkpoint as second arg')
+        quit()
     d_model = 51
     heads = 17
     embed_dim = 51
@@ -110,17 +128,28 @@ if __name__ == '__main__':
     generator.load_state_dict(torch.load(chkpts_dir + 'generator_e8lr001_1_7.pt'))
     for param in generator.parameters():
         param.requires_grad = False
-
-    train_iter = getAttackDataIterator(batchSize=train_batchSize, sequenceLength=seq_len+1, includeData=True, includeLabel=True)
-    train_data, train_labels = get_diffs_train(generator, train_iter)
-    del train_iter
+    
     test_data, test_labels = getAttackData()
     test_data = test_data[1:test_batchSize + 1]
     test_labels = test_labels[1:test_batchSize + 1]
     test_data, test_labels = get_diffs_test(generator, test_data, test_labels, seq_len)
-    
+
     clsfr = Classifier()
-    optim = torch.optim.SGD(clsfr.parameters(), lr=lr)
-    train_model(clsfr, optim, EPOCHS, train_data, train_labels, test_data, test_labels, chkpts_dir)
-    print('training complete')
-    quit()
+
+    if argv[1] == 'train':
+        train_iter = getAttackDataIterator(batchSize=train_batchSize, sequenceLength=seq_len+1, includeData=True, includeLabel=True)
+        train_data, train_labels = get_diffs_train(generator, train_iter)
+        del train_iter
+        optim = torch.optim.SGD(clsfr.parameters(), lr=lr)
+        train_model(clsfr, optim, EPOCHS, train_data, train_labels, test_data, test_labels, chkpts_dir)
+        print('training complete')
+        quit()
+    elif argv[1] == 'test':
+        clsfr.load_state_dict(torch.load(argv[2]))
+        for param in clsfr.parameters():
+            param.requires_grad = False
+        test_model(clsfr, test_data, test_labels)
+    else:
+        print('please put \"train\" or \"test\" as argument')
+        print('if testing, please put directory of checkpoint as second arg')
+        quit()
