@@ -44,7 +44,7 @@ def get_diffs_test(model, data, labels, seq_len):
     print('test diffs generation complete')
     return torch.stack(diffs), torch.tensor(label, dtype=torch.float32)
 
-class Discriminator(nn.Module):
+class Classifier(nn.Module):
 
     def __init__(self) -> None:
         super().__init__()
@@ -119,8 +119,8 @@ if __name__ == '__main__':
     test_labels = test_labels[1:test_batchSize + 1]
     test_data, test_labels = get_diffs_test(generator, test_data, test_labels, seq_len)
     
-    disc = Discriminator()
-    optim = torch.optim.SGD(disc.parameters(), lr=lr)
-    train_model(disc, optim, EPOCHS, train_data, train_labels, test_data, test_labels, chkpts_dir)
+    clsfr = Classifier()
+    optim = torch.optim.SGD(clsfr.parameters(), lr=lr)
+    train_model(clsfr, optim, EPOCHS, train_data, train_labels, test_data, test_labels, chkpts_dir)
     print('training complete')
     quit()
