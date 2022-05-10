@@ -66,9 +66,9 @@ class GAN(keras.Model):
             genLoss = self.compiled_loss(ones, fakeOut)  # self.compiled_loss(ones, fakeOut, onesSampleWeights)
             discLoss = self.compiled_loss(zeros, fakeOut, zerosSampleWeights) + self.compiled_loss(ones, realOut,
                                                                                                    onesSampleWeights)
-        with tf.device('/CPU:0'):
-            genGrad = gTape.gradient(genLoss, self.generator.trainable_variables)
-            discGrad = dTape.gradient(discLoss, self.discriminator.trainable_variables)
+        # with tf.device('/CPU:0'):
+        genGrad = gTape.gradient(genLoss, self.generator.trainable_variables)
+        discGrad = dTape.gradient(discLoss, self.discriminator.trainable_variables)
         self.genOptimizer.apply_gradients(zip(genGrad, self.generator.trainable_variables))
         self.discOptimizer.apply_gradients(zip(discGrad, self.discriminator.trainable_variables))
         return {"disc loss": discLoss, "gen loss": genLoss}
@@ -197,4 +197,4 @@ def continueTraining(discEpoch, genEpoch, stopEpoch, discLearningRate, genLearni
 
 
 if __name__ == '__main__':
-    continueTraining(28, 28, stopEpoch=float('inf'), discLearningRate=1e-6, genLearningRate=1e-6, batchSize=32)
+    continueTraining(28, 28, stopEpoch=float('inf'), discLearningRate=1e-5, genLearningRate=1e-5, batchSize=256)

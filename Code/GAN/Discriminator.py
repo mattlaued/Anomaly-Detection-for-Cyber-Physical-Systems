@@ -17,14 +17,14 @@ class CNN_Line(layers.Layer):
         # self.dense1 = layers.Dense(128)
 
     def call(self, inputs, *args, **kwargs):
-        with tf.device('/CPU:0'):
-            out = self.conv1(inputs)
-            out = self.leakyRelu1(out)
-            out = self.dropout1(out)
-            out = self.avgPool1(out)
-            out = self.conv2(out)
-            out = self.leakyRelu2(out)
-            out = self.dropout2(out)
+        # with tf.device('/CPU:0'):
+        out = self.conv1(inputs)
+        out = self.leakyRelu1(out)
+        out = self.dropout1(out)
+        out = self.avgPool1(out)
+        out = self.conv2(out)
+        out = self.leakyRelu2(out)
+        out = self.dropout2(out)
         return out
 
 class DenseLayer(layers.Layer):
