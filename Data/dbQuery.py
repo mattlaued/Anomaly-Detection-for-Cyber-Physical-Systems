@@ -12,7 +12,7 @@ from math import floor
 
 class SequencedDataIterator(object):
     def __init__(self, batchSize, sequenceLength: int, dbPath: str, tableName: str, includeData: bool,
-                 includeLabel: bool, extra=None):
+                 includeLabel: bool, dataCols=None, extra=None):
         super(SequencedDataIterator, self).__init__()
         if not includeData and not includeLabel:
             raise Exception("At least one of includeData or includeLabel must be True.")
@@ -23,6 +23,11 @@ class SequencedDataIterator(object):
         self.includeData = includeData
         self.includeLabel = includeLabel
         self.extra = extra
+        if dataCols is None:
+            self.dataCols = ALL_COLUMNS[1:-1]
+        else:
+            self.dataCols = dataCols
+        self.__labelCol = ALL_COLUMNS[-1]
 
         con = sqlite3.connect(self.dbPath)
         cursor = con.cursor()
@@ -57,10 +62,10 @@ class SequencedDataIterator(object):
         if self.includeData:
             seqs.append(
                 SequencedDataIterator(float('inf'), self.sequenceLength, self.dbPath, self.tableName, True,
-                                      False).selectNextNRows(float('inf')).__next__())
+                                      False, self.dataCols, self.extra).selectNextNRows(float('inf')).__next__())
         if self.includeLabel:
             seqs.append(
-                SequencedDataIterator(1, self.sequenceLength, self.dbPath, self.tableName, False, True).selectNextNRows(
+                SequencedDataIterator(1, self.sequenceLength, self.dbPath, self.tableName, False, True, self.dataCols, self.extra).selectNextNRows(
                     float('inf')).__next__().squeeze())
 
         if len(seqs) == 1:
@@ -73,8 +78,8 @@ class SequencedDataIterator(object):
         return self
 
     def selectNextNRows(self, numRows):
-        dataCols = ", ".join(ALL_COLUMNS[1:-1])
-        labelCol = ALL_COLUMNS[-1]
+        dataCols = ", ".join(self.dataCols) #ALL_COLUMNS[1:-1])
+        labelCol = self.__labelCol #ALL_COLUMNS[-1]
         cols = []
         if self.includeData:
             cols.append(dataCols)
@@ -142,43 +147,55 @@ class SequencedDataIterator(object):
         except:
             raise StopIteration
 
-def getNormalData():
+def getNormalData(cols=None, extra=None):
     """
+    :param cols: If None (Default) will use all data columns that are not the label or the time stamp. Otherwise,
+    pass in a list of column names in the desired order to be returned.
+    :param extra: A callable function that will be called on whatever values the iterator returns, the result will be returned instead
     :return: An numpy ndarray of the normal data
     """
-    return SequencedDataIterator(float('inf'), 1, NormalDBPath(), "Normal", True, False).to_numpy()
-def getAttackData():
+    return SequencedDataIterator(float('inf'), 1, NormalDBPath(), "Normal", True, False, cols, extra).to_numpy()
+def getAttackData(cols=None, extra=None):
     """
+    :param cols: If None (Default) will use all data columns that are not the label or the time stamp. Otherwise,
+    pass in a list of column names in the desired order to be returned.
+    :param extra: A callable function that will be called on whatever values the iterator returns, the result will be returned instead
     :return: two numpy ndarrays. First with the column data, and the second with the label data
     """
-    return SequencedDataIterator(1, 1, AttackDBPath(), "Attack", True, True).to_numpy()
+    return SequencedDataIterator(1, 1, AttackDBPath(), "Attack", True, True, cols, extra).to_numpy()
 
-def getNormalDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False, extra=None):
+def getNormalDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False, cols=None, extra=None):
     """
     :param includeData: If False, will only iterate through the labels
     :param includeLabel: If true, will return tuple (train batch, label batch) when iterated through. Otherwise will exclude label
     :param batchSize:
     :param sequenceLength:
+    :param cols: If None (Default) will use all data columns that are not the label or the time stamp. Otherwise,
+    pass in a list of column names in the desired order to be returned.
     :param extra: A callable function that will be called on whatever values the iterator returns, the result will be returned instead
     :return: Returns an iterator throught the normal data
     """
     if not includeData and not includeLabel:
         raise Exception("At least one of includeData or includeLabel must be True.")
-    return SequencedDataIterator(batchSize, sequenceLength, NormalDBPath(), "Normal", includeData, includeLabel, extra)
+    return SequencedDataIterator(batchSize, sequenceLength, NormalDBPath(), "Normal", includeData, includeLabel, cols, extra)
 
 
-def getAttackDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False, extra=None):
+def getAttackDataIterator(batchSize, sequenceLength: int, includeData=False, includeLabel=False, cols=None, extra=None):
     """
     :param includeData: If False, will only iterate through the labels
     :param includeLabel: If true, will return tuple (train batch, label batch) when iterated through. Otherwise will exclude label
     :param batchSize:
     :param sequenceLength:
+    :param cols: If None (Default) will use all data columns that are not the label or the time stamp. Otherwise,
+    pass in a list of column names in the desired order to be returned.
     :param extra: A callable function that will be called on whatever values the iterator returns, the result will be returned instead
     :return: Returns and iterator through the attack data
     """
     if not includeData and not includeLabel:
         raise Exception("At least one of includeData or includeLabel must be True.")
-    return SequencedDataIterator(batchSize, sequenceLength, AttackDBPath(), "Attack", includeData, includeLabel, extra)
+    return SequencedDataIterator(batchSize, sequenceLength, AttackDBPath(), "Attack", includeData, includeLabel, cols, extra)
+
+
 
 
 if __name__ == '__main__':
