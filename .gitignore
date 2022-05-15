@@ -2,6 +2,7 @@ ignore
 .idea
 .vscode
 SWaT_Data
+Checkpoints/*
 # Standard Git ignore files
 __pycache__/
 *.py[cod]
