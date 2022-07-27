@@ -38,15 +38,24 @@ def evaluateMetrics(prediction, labels):
     #     res['Specificity'] =  tn / (tn + fp)
     if tp + fp > 0:
         res['Precision'] = tp / (tp + fp)
+    else:
+        res['Precision'] = 0.0
     if tp + fn > 0:
         res['Recall'] = tp / (tp + fn)
+    else:
+        res['Recall'] = 0.0
     try:
         precision = tp / (tp + fp)
         recall = tp / (tp + fn)
         f1 = (2 * precision * recall) / (precision + recall)
         res['F1'] = f1
     except:
-        pass
+        res['F1'] = 0.0
+    res['True_Positives'] = tp
+    res['True_Negatives'] = tn
+    res['False_Positives'] = fp
+    res['False_Negatives'] = fn
+
     return res
 
 
